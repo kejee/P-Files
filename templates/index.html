@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P-Files 安全文件快递柜</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="navbar">
+    <div class="container nav-content">
+      <a href="/" class="brand">
+        <div class="brand-icon">📦</div>
+        <span>P-Files 安全快递柜</span>
+      </a>
+      <div class="nav-actions">
+        <a href="/admin" class="btn btn-secondary btn-sm">管理后台</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主体内容 -->
+  <main class="container">
+    <div class="glass-panel hero-box">
+      
+      <!-- 步骤 1: 提取码输入 -->
+      <div id="step-code">
+        <h2 style="font-size: 1.5rem; margin-bottom: 8px;">🔑 提取分享文件</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">输入 5~6 位文件提取码即可安全取件</p>
+        
+        <input 
+          type="text" 
+          id="input-code" 
+          class="code-input-display" 
+          placeholder="提取码" 
+          maxlength="16" 
+          value="{{ code }}"
+          autofocus
+        >
+
+        <button id="btn-query" class="btn btn-primary btn-block" style="padding: 12px; font-size: 1rem;">
+          🚀 查询并提取文件
+        </button>
+      </div>
+
+      <!-- 步骤 2: 文件信息与口令确认 -->
+      <div id="step-file-info" style="display: none; text-align: left;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+          <button id="btn-back" class="btn btn-secondary btn-sm">← 返回重填</button>
+          <span id="badge-burn" class="badge badge-danger" style="display: none;">🔥 阅后即焚</span>
+        </div>
+
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 18px; margin-bottom: 18px;">
+          <div style="display: flex; gap: 12px; align-items: flex-start;">
+            <div style="font-size: 2.2rem; background: rgba(99, 102, 241, 0.1); padding: 8px; border-radius: 8px;">📄</div>
+            <div style="flex: 1; min-width: 0;">
+              <h3 id="file-name" style="font-size: 1.1rem; word-break: break-all; margin-bottom: 4px; color: #fff;">-</h3>
+              <p style="color: var(--text-muted); font-size: 0.85rem;">
+                大小: <span id="file-size" style="color: var(--text-main); font-weight: 600;">-</span>
+              </p>
+            </div>
+          </div>
+
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.06); font-size: 0.8rem; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px;">
+            <div>⏳ 到期时间: <span id="file-expire" style="color: var(--text-muted);">-</span></div>
+            <div>👀 已查看 <span id="file-views" style="color: var(--accent-cyan);">0</span> 次 · 已下载 <span id="file-downloads" style="color: var(--accent-emerald);">0</span> 次</div>
+            <div id="file-remark-box" style="display: none; color: #cbd5e1; margin-top: 4px; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 4px;">
+              💬 备注: <span id="file-remark"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 口令输入区域 (若需要) -->
+        <div id="box-password" style="display: none; margin-bottom: 18px;">
+          <label class="form-label" style="color: #fbbf24;">🔒 该文件设有访问口令，请输入口令解锁：</label>
+          <input type="password" id="input-password" class="form-control" placeholder="输入访问口令" style="margin-bottom: 8px;">
+          <p style="color: var(--text-dim); font-size: 0.75rem;">提示：连续多次输错口令将触发 IP 临时安全封禁</p>
+        </div>
+
+        <!-- 阅后即焚特别提示 -->
+        <div id="burn-notice" style="display: none; margin-bottom: 18px; padding: 10px 14px; background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.3); border-radius: var(--radius-sm); font-size: 0.82rem; color: #fda4af;">
+          ⚠️ <strong>注意</strong>：此文件开启了阅后即焚策略，下载 1 次后将立刻自动销毁失效！
+        </div>
+
+        <button id="btn-download" class="btn btn-primary btn-block" style="padding: 12px; font-size: 1rem;">
+          ⬇️ 立即安全下载
+        </button>
+      </div>
+
+      <!-- 步骤 3: 下载完成 / 即焚销毁状态 -->
+      <div id="step-destroyed" style="display: none; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 12px;">💨</div>
+        <h3 style="color: #fda4af; margin-bottom: 8px;">文件已阅后即焚销毁</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">
+          您已完成本次安全下载。根据分享策略，该文件已从系统销毁失效。
+        </p>
+        <a href="/" class="btn btn-secondary">返回首页</a>
+      </div>
+
+      <!-- IP 与地区提示 -->
+      <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--border-glass); font-size: 0.78rem; color: var(--text-dim);">
+        您的访问 IP: <span id="user-ip" style="color: var(--text-muted);">检测中...</span>
+        <span id="user-geo" style="margin-left: 6px; color: var(--accent-cyan);"></span>
+      </div>
+
+    </div>
+  </main>
+
+  <div id="toast-container"></div>
+
+  <script>
+    const inputCode = document.getElementById('input-code');
+    const btnQuery = document.getElementById('btn-query');
+    const stepCode = document.getElementById('step-code');
+    const stepFileInfo = document.getElementById('step-file-info');
+    const stepDestroyed = document.getElementById('step-destroyed');
+    const btnBack = document.getElementById('btn-back');
+    const btnDownload = document.getElementById('btn-download');
+    const boxPassword = document.getElementById('box-password');
+    const inputPassword = document.getElementById('input-password');
+    const burnNotice = document.getElementById('burn-notice');
+    const badgeBurn = document.getElementById('badge-burn');
+
+    let currentFileInfo = null;
+    let verifiedToken = null;
+
+    function showToast(msg, isError = false) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      if (isError) toast.style.borderLeftColor = '#f43f5e';
+      toast.innerText = msg;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    async function queryFile() {
+      const code = inputCode.value.trim();
+      if (!code) {
+        showToast('请输入提取码', true);
+        return;
+      }
+
+      btnQuery.disabled = true;
+      btnQuery.innerText = '查询中...';
+
+      try {
+        const formData = new FormData();
+        formData.append('code', code);
+
+        const res = await fetch('/api/share/query', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (res.status === 200) {
+          currentFileInfo = data.data;
+          renderFileInfo(data.data);
+        } else if (res.status === 403) {
+          showToast(data.detail || '当前 IP 无权访问此分享', true);
+        } else {
+          showToast(data.detail || '提取码无效或文件不存在', true);
+        }
+      } catch (err) {
+        showToast('网络连接失败，请重试', true);
+      } finally {
+        btnQuery.disabled = false;
+        btnQuery.innerText = '🚀 查询并提取文件';
+      }
+    }
+
+    function renderFileInfo(info) {
+      document.getElementById('file-name').innerText = info.filename;
+      document.getElementById('file-size').innerText = info.file_size_formatted;
+      document.getElementById('file-expire').innerText = info.expire_at;
+      document.getElementById('file-views').innerText = info.view_count;
+      document.getElementById('file-downloads').innerText = info.download_count;
+      document.getElementById('user-ip').innerText = info.client_ip || '';
+      document.getElementById('user-geo').innerText = info.client_location ? `(${info.client_location})` : '';
+
+      if (info.remark) {
+        document.getElementById('file-remark').innerText = info.remark;
+        document.getElementById('file-remark-box').style.display = 'block';
+      } else {
+        document.getElementById('file-remark-box').style.display = 'none';
+      }
+
+      // 口令展示
+      if (info.requires_password) {
+        boxPassword.style.display = 'block';
+      } else {
+        boxPassword.style.display = 'none';
+      }
+
+      // 阅后即焚展示
+      if (info.burn_mode > 0) {
+        burnNotice.style.display = 'block';
+        badgeBurn.style.display = 'inline-flex';
+      } else {
+        burnNotice.style.display = 'none';
+        badgeBurn.style.display = 'none';
+      }
+
+      stepCode.style.display = 'none';
+      stepFileInfo.style.display = 'block';
+    }
+
+    async function handleDownload() {
+      if (!currentFileInfo) return;
+
+      let pwd = '';
+      if (currentFileInfo.requires_password) {
+        pwd = inputPassword.value.trim();
+        if (!pwd) {
+          showToast('请输入访问口令', true);
+          return;
+        }
+
+        btnDownload.disabled = true;
+        btnDownload.innerText = '口令校验中...';
+
+        // 先校验口令
+        const formData = new FormData();
+        formData.append('code', currentFileInfo.share_code);
+        formData.append('password', pwd);
+
+        try {
+          const vRes = await fetch('/api/share/verify', {
+            method: 'POST',
+            body: formData
+          });
+          const vData = await vRes.json();
+          if (vRes.status !== 200) {
+            showToast(vData.detail || '口令错误', true);
+            btnDownload.disabled = false;
+            btnDownload.innerText = '⬇️ 立即安全下载';
+            return;
+          }
+          verifiedToken = vData.download_token;
+        } catch (e) {
+          showToast('校验网络异常', true);
+          btnDownload.disabled = false;
+          btnDownload.innerText = '⬇️ 立即安全下载';
+          return;
+        }
+      }
+
+      // 触发下载
+      let downloadUrl = `/api/share/download/${encodeURIComponent(currentFileInfo.share_code)}`;
+      if (verifiedToken) {
+        downloadUrl += `?token=${encodeURIComponent(verifiedToken)}`;
+      } else if (pwd) {
+        downloadUrl += `?pwd=${encodeURIComponent(pwd)}`;
+      }
+
+      // 创建隐藏 iframe 或直接导航下载
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', currentFileInfo.filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      showToast('下载已开始！');
+
+      // 若为阅后即焚，更新界面
+      if (currentFileInfo.burn_mode > 0) {
+        setTimeout(() => {
+          stepFileInfo.style.display = 'none';
+          stepDestroyed.style.display = 'block';
+        }, 1200);
+      }
+    }
+
+    btnQuery.addEventListener('click', queryFile);
+    inputCode.addEventListener('keydown', (e) => { if (e.key === 'Enter') queryFile(); });
+
+    btnBack.addEventListener('click', () => {
+      stepFileInfo.style.display = 'none';
+      stepCode.style.display = 'block';
+    });
+
+    btnDownload.addEventListener('click', handleDownload);
+    inputPassword.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleDownload(); });
+
+    // 如果 URL 中有 code，自动触发查询
+    if (inputCode.value.trim()) {
+      queryFile();
+    }
+  </script>
+</body>
+</html>

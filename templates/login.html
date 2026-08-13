@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员登录 - P-Files</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="container" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
+    <div class="glass-panel" style="width: 100%; max-width: 400px; padding: 32px 28px; text-align: center;">
+      
+      <div style="font-size: 2.8rem; margin-bottom: 8px;">🔐</div>
+      <h2 style="font-size: 1.4rem; margin-bottom: 4px;">P-Files 管理控制台</h2>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 24px;">请输入管理员凭证进入后台</p>
+
+      <form id="login-form" style="text-align: left;">
+        <div class="form-group">
+          <label class="form-label">管理员账号</label>
+          <input type="text" id="username" class="form-control" placeholder="默认 admin" required autofocus>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 24px;">
+          <label class="form-label">管理员密码</label>
+          <input type="password" id="password" class="form-control" placeholder="请输入密码" required>
+        </div>
+
+        <button type="submit" id="btn-submit" class="btn btn-primary btn-block" style="padding: 12px; font-size: 0.95rem;">
+          安全登录
+        </button>
+      </form>
+
+      <div style="margin-top: 20px; font-size: 0.8rem; color: var(--text-dim);">
+        <a href="/" style="color: var(--text-muted); text-decoration: none;">← 返回文件提取首页</a>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const btnSubmit = document.getElementById('btn-submit');
+
+    function showToast(msg, isError = false) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      if (isError) toast.style.borderLeftColor = '#f43f5e';
+      toast.innerText = msg;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      btnSubmit.disabled = true;
+      btnSubmit.innerText = '登录验证中...';
+
+      try {
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('password', password);
+
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (res.status === 200) {
+          showToast('登录成功，正在跳转...');
+          localStorage.setItem('admin_token', data.token);
+          setTimeout(() => {
+            window.location.href = '/admin';
+          }, 800);
+        } else {
+          showToast(data.detail || '登录失败，请检查账号密码', true);
+        }
+      } catch (err) {
+        showToast('网络请求异常', true);
+      } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = '安全登录';
+      }
+    });
+  </script>
+</body>
+</html>

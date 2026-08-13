@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>控制台 - P-Files 安全文件分享柜</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .stat-card {
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .stat-icon {
+      font-size: 2rem;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .stat-num {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .badge-rule {
+      font-size: 0.72rem;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #cbd5e1;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="navbar">
+    <div class="container nav-content">
+      <div class="brand">
+        <div class="brand-icon">📦</div>
+        <span>P-Files 管理控制台</span>
+      </div>
+      <div class="nav-actions">
+        <a href="/" target="_blank" class="btn btn-secondary btn-sm">🔗 打开提取首页</a>
+        <button id="btn-modal-pwd" class="btn btn-secondary btn-sm">🔑 修改密码</button>
+        <button id="btn-logout" class="btn btn-danger btn-sm">🚪 退出登录</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-bottom: 60px;">
+    
+    <!-- 1. 统计卡片面板 -->
+    <div class="stats-grid">
+      <div class="glass-panel stat-card">
+        <div class="stat-icon" style="color: var(--primary);">📁</div>
+        <div>
+          <div class="stat-num" id="stat-total-files">-</div>
+          <div class="stat-label">总分享文件数</div>
+        </div>
+      </div>
+      <div class="glass-panel stat-card">
+        <div class="stat-icon" style="color: var(--accent-emerald);">⚡</div>
+        <div>
+          <div class="stat-num" id="stat-active-files">-</div>
+          <div class="stat-label">活跃分享中</div>
+        </div>
+      </div>
+      <div class="glass-panel stat-card">
+        <div class="stat-icon" style="color: var(--accent-cyan);">👀</div>
+        <div>
+          <div class="stat-num" id="stat-total-views">-</div>
+          <div class="stat-label">累计查看次数</div>
+        </div>
+      </div>
+      <div class="glass-panel stat-card">
+        <div class="stat-icon" style="color: var(--accent-pink);">⬇️</div>
+        <div>
+          <div class="stat-num" id="stat-total-downloads">-</div>
+          <div class="stat-label">累计下载次数</div>
+        </div>
+      </div>
+      <div class="glass-panel stat-card">
+        <div class="stat-icon" style="color: var(--accent-rose);">🛡️</div>
+        <div>
+          <div class="stat-num" id="stat-blocked-ips">-</div>
+          <div class="stat-label">已拦截非法 IP</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 上传与分享配置面板 -->
+    <div class="glass-panel" style="padding: 24px; margin-bottom: 30px;">
+      <h3 style="font-size: 1.15rem; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+        <span>📤 上传文件并配置分享策略</span>
+      </h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px;">
+        所有限制策略均为独立开关，支持<strong>单选、多选、全选自由组合</strong>。
+      </p>
+
+      <form id="upload-form">
+        <!-- 拖拽上传区域 -->
+        <div id="dropzone" class="dropzone" style="margin-bottom: 20px;">
+          <input type="file" id="file-input" style="display: none;" required>
+          <div class="dropzone-icon">☁️</div>
+          <div id="file-preview-name" style="font-weight: 600; font-size: 1rem; color: #fff;">
+            点击选择文件，或将文件拖放到此处
+          </div>
+          <div id="file-preview-size" style="font-size: 0.8rem; color: var(--text-dim); margin-top: 4px;">
+            支持任意类型文件上传，自动通过 UUID 物理隔离存储
+          </div>
+        </div>
+
+        <!-- 基础配置 -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">提取码 (留空自动生成 6 位码)</label>
+            <input type="text" id="cfg-custom-code" class="form-control" placeholder="如 mycode / 留空随机">
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">文件备注 (可选)</label>
+            <input type="text" id="cfg-remark" class="form-control" placeholder="如：财务发票、项目安装包">
+          </div>
+        </div>
+
+        <!-- 5 项独立自由组合策略卡片 -->
+        <div class="strategy-grid">
+          
+          <!-- 策略 1: 访问口令 -->
+          <div class="strategy-card" id="card-sw-pwd">
+            <div class="strategy-header">
+              <div class="strategy-title"><span>🔑</span> 访问口令保护</div>
+              <label class="switch">
+                <input type="checkbox" id="sw-pwd">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="opt-pwd-body" style="display: none; margin-top: 8px;">
+              <input type="text" id="cfg-password" class="form-control" placeholder="设置查看/下载口令" style="padding: 6px 10px; font-size: 0.85rem;">
+            </div>
+          </div>
+
+          <!-- 策略 2: 有效时长 -->
+          <div class="strategy-card" id="card-sw-expire">
+            <div class="strategy-header">
+              <div class="strategy-title"><span>⏳</span> 分享有效时长</div>
+              <label class="switch">
+                <input type="checkbox" id="sw-expire" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="opt-expire-body" style="margin-top: 8px;">
+              <select id="cfg-expire-select" class="form-control" style="padding: 6px 10px; font-size: 0.85rem;">
+                <option value="0.1666">10 分钟</option>
+                <option value="1">1 小时</option>
+                <option value="24" selected>1 天 (24小时)</option>
+                <option value="72">3 天</option>
+                <option value="168">7 天</option>
+                <option value="720">30 天</option>
+                <option value="custom">自定义小时数</option>
+              </select>
+              <input type="number" id="cfg-expire-custom" class="form-control" placeholder="输入小时数" style="display: none; margin-top: 6px; padding: 6px 10px; font-size: 0.85rem;">
+            </div>
+          </div>
+
+          <!-- 策略 3: 阅后即焚模式 -->
+          <div class="strategy-card" id="card-sw-burn">
+            <div class="strategy-header">
+              <div class="strategy-title"><span>🔥</span> 阅后即焚</div>
+              <label class="switch">
+                <input type="checkbox" id="sw-burn">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="opt-burn-body" style="display: none; margin-top: 8px;">
+              <select id="cfg-burn-mode" class="form-control" style="padding: 6px 10px; font-size: 0.82rem;">
+                <option value="1">🟡 仅失效分享 (保留源文件)</option>
+                <option value="2">🔴 彻底销毁 (物理删除文件)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 策略 4: 最大下载次数 -->
+          <div class="strategy-card" id="card-sw-maxdl">
+            <div class="strategy-header">
+              <div class="strategy-title"><span>🎯</span> 限制下载次数</div>
+              <label class="switch">
+                <input type="checkbox" id="sw-maxdl">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="opt-maxdl-body" style="display: none; margin-top: 8px;">
+              <input type="number" id="cfg-max-downloads" class="form-control" placeholder="允许下载的最大次数" value="5" min="1" style="padding: 6px 10px; font-size: 0.85rem;">
+            </div>
+          </div>
+
+          <!-- 策略 5: IP 白名单限制 -->
+          <div class="strategy-card" id="card-sw-ip">
+            <div class="strategy-header">
+              <div class="strategy-title"><span>🛡️</span> 限制 IP 访问</div>
+              <label class="switch">
+                <input type="checkbox" id="sw-ip">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="opt-ip-body" style="display: none; margin-top: 8px;">
+              <textarea id="cfg-allowed-ips" class="form-control" placeholder="支持单IP或网段, 逗号分隔&#10;例: 1.2.3.4, 192.168.1.0/24" rows="2" style="padding: 6px 10px; font-size: 0.8rem;"></textarea>
+            </div>
+          </div>
+
+        </div>
+
+        <button type="submit" id="btn-upload-submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.95rem;">
+          🚀 开始上传并生成分享
+        </button>
+      </form>
+    </div>
+
+    <!-- 3. 文件管理列表 -->
+    <div class="glass-panel" style="padding: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+        <h3 style="font-size: 1.15rem;">📁 文件分享与审计列表</h3>
+        
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <input type="text" id="search-input" class="form-control" placeholder="🔍 搜索文件名 / 提取码..." style="width: 220px; padding: 6px 12px; font-size: 0.85rem;">
+          <select id="filter-status" class="form-control" style="width: 120px; padding: 6px 10px; font-size: 0.85rem;">
+            <option value="all">全部状态</option>
+            <option value="active">活跃中</option>
+            <option value="expired">已过期</option>
+            <option value="burned">已即焚</option>
+            <option value="revoked">已取消</option>
+          </select>
+          <button id="btn-refresh" class="btn btn-secondary btn-sm">🔄 刷新</button>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>提取码 / 文件名</th>
+              <th>文件大小</th>
+              <th>分享策略</th>
+              <th>查看 / 下载</th>
+              <th>到期时间</th>
+              <th>状态</th>
+              <th style="text-align: right;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="files-table-body">
+            <tr>
+              <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 30px;">
+                数据加载中...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 模态框: IP 访问明细与审计 -->
+  <div id="modal-logs" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-logs-title" style="font-size: 1.05rem; display: flex; align-items: center; gap: 6px;">
+          📊 访客 IP 与操作审计明细
+        </h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-logs')">✕</button>
+      </div>
+      <div class="modal-body" style="padding: 0;">
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>访问动作</th>
+                <th>访客 IP</th>
+                <th>物理地区 (离线定位)</th>
+                <th>时间</th>
+              </tr>
+            </thead>
+            <tbody id="modal-logs-body">
+              <!-- 动态填充 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框: 重新分享配置 -->
+  <div id="modal-reshare" class="modal-overlay">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.05rem;">🔄 重新生成分享链接</h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-reshare')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-reshare">
+          <input type="hidden" id="reshare-file-id">
+          <div class="form-group">
+            <label class="form-label">提取码 (留空自动生成)</label>
+            <input type="text" id="reshare-code" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">访问口令 (留空无密)</label>
+            <input type="text" id="reshare-pwd" class="form-control" placeholder="可选口令">
+          </div>
+          <div class="form-group">
+            <label class="form-label">有效时长</label>
+            <select id="reshare-expire" class="form-control">
+              <option value="0">永久有效</option>
+              <option value="1">1 小时</option>
+              <option value="24" selected>1 天</option>
+              <option value="168">7 天</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">阅后即焚模式</label>
+            <select id="reshare-burn" class="form-control">
+              <option value="0">关闭</option>
+              <option value="1">仅失效分享链接</option>
+              <option value="2">彻底销毁文件</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" style="margin-top: 16px;">确认重新开启</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框: 修改密码 -->
+  <div id="modal-pwd" class="modal-overlay">
+    <div class="modal-box" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.05rem;">🔑 修改管理员密码</h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-pwd')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-pwd">
+          <div class="form-group">
+            <label class="form-label">原密码</label>
+            <input type="password" id="old-pwd" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">新密码 (不少于6位)</label>
+            <input type="password" id="new-pwd" class="form-control" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" style="margin-top: 16px;">确认修改</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    // 基础鉴权与请求封装
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+      window.location.href = '/login';
+    }
+
+    function showToast(msg, isError = false) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      if (isError) toast.style.borderLeftColor = '#f43f5e';
+      toast.innerText = msg;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    function openModal(id) {
+      document.getElementById(id).classList.add('active');
+    }
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    // 绑定策略开关 UI 响应
+    function bindSwitch(swId, bodyId, cardId) {
+      const sw = document.getElementById(swId);
+      const body = document.getElementById(bodyId);
+      const card = document.getElementById(cardId);
+      sw.addEventListener('change', () => {
+        if (sw.checked) {
+          body.style.display = 'block';
+          card.classList.add('active');
+        } else {
+          body.style.display = 'none';
+          card.classList.remove('active');
+        }
+      });
+      if (sw.checked) {
+        body.style.display = 'block';
+        card.classList.add('active');
+      }
+    }
+
+    bindSwitch('sw-pwd', 'opt-pwd-body', 'card-sw-pwd');
+    bindSwitch('sw-expire', 'opt-expire-body', 'card-sw-expire');
+    bindSwitch('sw-burn', 'opt-burn-body', 'card-sw-burn');
+    bindSwitch('sw-maxdl', 'opt-maxdl-body', 'card-sw-maxdl');
+    bindSwitch('sw-ip', 'opt-ip-body', 'card-sw-ip');
+
+    document.getElementById('cfg-expire-select').addEventListener('change', (e) => {
+      document.getElementById('cfg-expire-custom').style.display = e.target.value === 'custom' ? 'block' : 'none';
+    });
+
+    // 拖拽上传支持
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('file-input');
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        handleFileSelected(fileInput.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) handleFileSelected(e.target.files[0]);
+    });
+
+    function handleFileSelected(file) {
+      document.getElementById('file-preview-name').innerText = `📄 ${file.name}`;
+      document.getElementById('file-preview-size').innerText = `大小: ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    // 加载统计与文件列表
+    async function loadDashboard() {
+      try {
+        // 1. 统计
+        const sRes = await fetch('/api/admin/stats', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (sRes.status === 401) { window.location.href = '/login'; return; }
+        const sData = await sRes.json();
+        if (sData.code === 200) {
+          document.getElementById('stat-total-files').innerText = sData.data.total_files;
+          document.getElementById('stat-active-files').innerText = sData.data.active_files;
+          document.getElementById('stat-total-views').innerText = sData.data.total_views;
+          document.getElementById('stat-total-downloads').innerText = sData.data.total_downloads;
+          document.getElementById('stat-blocked-ips').innerText = sData.data.blocked_count;
+        }
+
+        // 2. 列表
+        loadFiles();
+      } catch (err) {
+        showToast('加载数据失败', true);
+      }
+    }
+
+    async function loadFiles() {
+      const search = document.getElementById('search-input').value.trim();
+      const statusFilter = document.getElementById('filter-status').value;
+
+      let url = `/api/admin/files?status_filter=${encodeURIComponent(statusFilter)}`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      const tbody = document.getElementById('files-table-body');
+
+      if (!data.data || data.data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 30px;">暂无文件记录</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.data.map(f => {
+        let statusBadge = `<span class="badge badge-success">分享中</span>`;
+        if (f.status === 'expired') statusBadge = `<span class="badge badge-warning">已过期</span>`;
+        if (f.status === 'burned') statusBadge = `<span class="badge badge-danger">已即焚</span>`;
+        if (f.status === 'revoked' || f.status === 'deleted') statusBadge = `<span class="badge badge-gray">已删除</span>`;
+
+        let rules = [];
+        if (f.has_password) rules.push(`<span class="badge-rule">🔑 口令</span>`);
+        if (f.burn_mode === 1) rules.push(`<span class="badge-rule" style="color:#fbbf24;">🔥 仅毁链</span>`);
+        if (f.burn_mode === 2) rules.push(`<span class="badge-rule" style="color:#fda4af;">💥 物理销毁</span>`);
+        if (f.max_downloads > 0) rules.push(`<span class="badge-rule">🎯 限${f.max_downloads}次</span>`);
+        if (f.allowed_ips) rules.push(`<span class="badge-rule" style="color:#38bdf8;">🛡️ IP白名单</span>`);
+        if (rules.length === 0) rules.push(`<span style="color:var(--text-dim); font-size:0.75rem;">无特殊限制</span>`);
+
+        return `
+          <tr>
+            <td>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-family:monospace; background:rgba(99,102,241,0.15); color:#a5b4fc; padding:2px 6px; border-radius:4px; font-weight:700;">
+                  ${f.share_code}
+                </span>
+                <span style="font-weight:600; color:#fff; word-break:break-all;">${f.original_filename}</span>
+              </div>
+              ${f.remark ? `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">📝 ${f.remark}</div>` : ''}
+            </td>
+            <td>${f.file_size_formatted}</td>
+            <td><div style="display:flex; flex-wrap:wrap; gap:4px;">${rules.join('')}</div></td>
+            <td>
+              <span style="color:var(--accent-cyan);">👀 ${f.view_count}</span> / 
+              <span style="color:var(--accent-emerald); font-weight:600;">⬇️ ${f.download_count}</span>
+            </td>
+            <td style="font-size:0.8rem; color:var(--text-muted);">${f.expire_at}</td>
+            <td>${statusBadge}</td>
+            <td style="text-align:right;">
+              <div style="display:inline-flex; gap:6px;">
+                <button class="btn btn-secondary btn-sm" onclick="copyShare('${f.share_code}')" title="复制分享链接">📋 复制</button>
+                <button class="btn btn-secondary btn-sm" onclick="viewLogs(${f.id}, '${f.share_code}')" title="查看访问IP与地理位置明细">📊 日志</button>
+                ${f.status !== 'active' ? `<button class="btn btn-secondary btn-sm" onclick="openReshare(${f.id}, '${f.share_code}')">🔄 重开</button>` : ''}
+                <button class="btn btn-danger btn-sm" onclick="deleteFile(${f.id})">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // 上传处理
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!fileInput.files.length) {
+        showToast('请先选择要上传的文件', true);
+        return;
+      }
+
+      const btn = document.getElementById('btn-upload-submit');
+      btn.disabled = true;
+      btn.innerText = '正在上传与加密存储...';
+
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('custom_code', document.getElementById('cfg-custom-code').value.trim());
+      formData.append('remark', document.getElementById('cfg-remark').value.trim());
+
+      // 策略 1: 口令
+      if (document.getElementById('sw-pwd').checked) {
+        formData.append('password', document.getElementById('cfg-password').value.trim());
+      }
+      // 策略 2: 有效时长
+      if (document.getElementById('sw-expire').checked) {
+        const sel = document.getElementById('cfg-expire-select').value;
+        const expHours = sel === 'custom' ? parseFloat(document.getElementById('cfg-expire-custom').value) || 24 : parseFloat(sel);
+        formData.append('expire_hours', expHours);
+      } else {
+        formData.append('expire_hours', 0);
+      }
+      // 策略 3: 阅后即焚
+      if (document.getElementById('sw-burn').checked) {
+        formData.append('burn_mode', document.getElementById('cfg-burn-mode').value);
+      } else {
+        formData.append('burn_mode', 0);
+      }
+      // 策略 4: 最大下载
+      if (document.getElementById('sw-maxdl').checked) {
+        formData.append('max_downloads', parseInt(document.getElementById('cfg-max-downloads').value) || 0);
+      }
+      // 策略 5: IP 白名单
+      if (document.getElementById('sw-ip').checked) {
+        formData.append('allowed_ips', document.getElementById('cfg-allowed-ips').value.trim());
+      }
+
+      try {
+        const res = await fetch('/api/admin/upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (res.status === 200) {
+          showToast(`✅ 上传成功！提取码: ${data.data.share_code}`);
+          // 重置表单
+          fileInput.value = '';
+          document.getElementById('file-preview-name').innerText = '点击选择文件，或将文件拖放到此处';
+          document.getElementById('file-preview-size').innerText = '支持任意类型文件上传';
+          document.getElementById('cfg-custom-code').value = '';
+          loadDashboard();
+        } else {
+          showToast(data.detail || '上传失败', true);
+        }
+      } catch (err) {
+        showToast('网络上传异常', true);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '🚀 开始上传并生成分享';
+      }
+    });
+
+    // 复制分享链接
+    function copyShare(code) {
+      const shareUrl = `${window.location.origin}/s/${code}`;
+      const text = `【P-Files 安全文件提取】\n提取链接: ${shareUrl}\n提取码: ${code}`;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('已复制分享链接与提取码至剪贴板！');
+      }).catch(() => {
+        prompt('请手动复制分享链接:', text);
+      });
+    }
+
+    // 查看文件访客 IP 与地区日志
+    async function viewLogs(fileId, code) {
+      document.getElementById('modal-logs-title').innerText = `📊 文件 [${code}] 访客 IP 与地区审计`;
+      const tbody = document.getElementById('modal-logs-body');
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px;">加载日志中...</td></tr>`;
+      openModal('modal-logs');
+
+      try {
+        const res = await fetch(`/api/admin/files/${fileId}/logs`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (!data.data || data.data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-dim); padding:20px;">暂无任何访客访问记录</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = data.data.map(l => {
+          let actBadge = `<span class="badge badge-info">查看信息</span>`;
+          if (l.action === 'download') actBadge = `<span class="badge badge-success">成功下载</span>`;
+          if (l.action === 'blocked_ip') actBadge = `<span class="badge badge-danger">🛡️ 拦截IP</span>`;
+          if (l.action === 'wrong_pwd') actBadge = `<span class="badge badge-warning">口令错误</span>`;
+
+          return `
+            <tr>
+              <td>${actBadge}</td>
+              <td style="font-family:monospace; color:#fff;">${l.ip}</td>
+              <td><span style="color:var(--accent-cyan); font-weight:500;">${l.location}</span></td>
+              <td style="font-size:0.8rem; color:var(--text-muted);">${l.created_at}</td>
+            </tr>
+          `;
+        }).join('');
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#f43f5e; padding:20px;">加载日志失败</td></tr>`;
+      }
+    }
+
+    // 重新开启分享
+    function openReshare(id, code) {
+      document.getElementById('reshare-file-id').value = id;
+      document.getElementById('reshare-code').value = code;
+      openModal('modal-reshare');
+    }
+
+    document.getElementById('form-reshare').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('reshare-file-id').value;
+      const formData = new FormData();
+      formData.append('custom_code', document.getElementById('reshare-code').value.trim());
+      formData.append('password', document.getElementById('reshare-pwd').value.trim());
+      formData.append('expire_hours', parseFloat(document.getElementById('reshare-expire').value) || 0);
+      formData.append('burn_mode', parseInt(document.getElementById('reshare-burn').value) || 0);
+
+      const res = await fetch(`/api/admin/files/${id}/re-share`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.status === 200) {
+        showToast('重新开启分享成功！');
+        closeModal('modal-reshare');
+        loadDashboard();
+      } else {
+        showToast(data.detail || '操作失败', true);
+      }
+    });
+
+    // 手动删除
+    async function deleteFile(id) {
+      if (!confirm('确定要删除此文件吗？底层物理文件也将一并被彻底销毁。')) return;
+      const res = await fetch(`/api/admin/files/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.status === 200) {
+        showToast('文件已彻底删除');
+        loadDashboard();
+      } else {
+        showToast(data.detail || '删除失败', true);
+      }
+    }
+
+    // 退出与改密
+    document.getElementById('btn-logout').addEventListener('click', async () => {
+      await fetch('/api/admin/logout', { method: 'POST' });
+      localStorage.removeItem('admin_token');
+      window.location.href = '/login';
+    });
+
+    document.getElementById('btn-modal-pwd').addEventListener('click', () => openModal('modal-pwd'));
+    document.getElementById('form-pwd').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const oldPwd = document.getElementById('old-pwd').value;
+      const newPwd = document.getElementById('new-pwd').value;
+      const formData = new FormData();
+      formData.append('old_password', oldPwd);
+      formData.append('new_password', newPwd);
+
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.status === 200) {
+        showToast('密码修改成功，请重新登录');
+        closeModal('modal-pwd');
+        setTimeout(() => {
+          localStorage.removeItem('admin_token');
+          window.location.href = '/login';
+        }, 1000);
+      } else {
+        showToast(data.detail || '密码修改失败', true);
+      }
+    });
+
+    document.getElementById('search-input').addEventListener('input', loadFiles);
+    document.getElementById('filter-status').addEventListener('change', loadFiles);
+    document.getElementById('btn-refresh').addEventListener('click', loadDashboard);
+
+    // 初始化
+    loadDashboard();
+  </script>
+</body>
+</html>

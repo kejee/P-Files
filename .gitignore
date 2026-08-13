@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+ENV/
+
+# System / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Local Data (保留目录结构，忽略运行时 db 与 uploads)
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/uploads/*
+!data/uploads/.gitkeep
