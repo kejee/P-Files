@@ -128,22 +128,22 @@ async def get_current_admin(
 @app.get("/", response_class=HTMLResponse)
 async def page_index(request: Request):
     """访客公共提取页"""
-    return templates.TemplateResponse("index.html", {"request": request, "code": ""})
+    return templates.TemplateResponse(request=request, name="index.html", context={"code": ""})
 
 @app.get("/s/{code}", response_class=HTMLResponse)
 async def page_share_direct(request: Request, code: str):
     """直接通过链接访问提取页"""
-    return templates.TemplateResponse("index.html", {"request": request, "code": code})
+    return templates.TemplateResponse(request=request, name="index.html", context={"code": code})
 
 @app.get("/login", response_class=HTMLResponse)
 async def page_login(request: Request):
     """管理员登录页"""
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="login.html")
 
 @app.get("/admin", response_class=HTMLResponse)
 async def page_admin(request: Request):
     """管理员控制台页面"""
-    return templates.TemplateResponse("admin.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="admin.html")
 
 # ----------------- 管理员 API -----------------
 
