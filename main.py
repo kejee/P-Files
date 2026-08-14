@@ -139,7 +139,7 @@ async def get_current_admin(
 @app.get("/", response_class=HTMLResponse)
 async def page_index(request: Request):
     """访客公共提取页"""
-    client_ip = get_real_client_ip(request)
+    client_ip = get_client_ip(request)
     location = IPLocator.get_location(client_ip)
     return templates.TemplateResponse(
         request=request, 
@@ -150,7 +150,7 @@ async def page_index(request: Request):
 @app.get("/s/{code}", response_class=HTMLResponse)
 async def page_share_direct(request: Request, code: str):
     """直接通过链接访问提取页"""
-    client_ip = get_real_client_ip(request)
+    client_ip = get_client_ip(request)
     location = IPLocator.get_location(client_ip)
     return templates.TemplateResponse(
         request=request, 
