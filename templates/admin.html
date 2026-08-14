@@ -623,14 +623,44 @@
       }
     });
 
+    // 通用剪贴板复制函数 (完美兼容 HTTP 与 HTTPS 环境)
+    function copyTextToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      } else {
+        return new Promise((resolve, reject) => {
+          const textArea = document.createElement('textarea');
+          textArea.value = text;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          textArea.style.top = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          try {
+            const successful = document.execCommand('copy');
+            textArea.remove();
+            if (successful) {
+              resolve();
+            } else {
+              reject(new Error('复制失败'));
+            }
+          } catch (err) {
+            textArea.remove();
+            reject(err);
+          }
+        });
+      }
+    }
+
     // 复制分享链接
     function copyShare(code) {
       const shareUrl = `${window.location.origin}/s/${code}`;
       const text = `【P-Files 安全文件提取】\n提取链接: ${shareUrl}\n提取码: ${code}`;
-      navigator.clipboard.writeText(text).then(() => {
-        showToast('已复制分享链接与提取码至剪贴板！');
+      copyTextToClipboard(text).then(() => {
+        showToast('✅ 已复制分享链接与提取码至剪贴板！');
       }).catch(() => {
-        prompt('请手动复制分享链接:', text);
+        prompt('请手动长按复制分享链接:', text);
       });
     }
 
