@@ -610,8 +610,8 @@
         .replace(/'/g, '&#039;');
     }
 
-    // 智能截断文件名 (中间截断，完整保留后缀)
-    function formatSmartFilenameHtml(filename, maxWidthPx = 220) {
+    // 智能中间截断文件名 (例如: Screenshot_2024...ABenchMark.jpg，完整保留后缀)
+    function formatSmartFilenameHtml(filename, maxStemLen = 22) {
       if (!filename) return '';
       const safeFull = escapeHtml(filename);
       const lastDot = filename.lastIndexOf('.');
@@ -621,11 +621,19 @@
         stem = filename.slice(0, lastDot);
         ext = filename.slice(lastDot);
       }
-      const safeStem = escapeHtml(stem);
+
+      let displayStem = stem;
+      if (stem.length > maxStemLen) {
+        const prefixLen = Math.ceil((maxStemLen - 3) * 0.6);
+        const suffixLen = Math.floor((maxStemLen - 3) * 0.4);
+        displayStem = stem.slice(0, prefixLen) + '...' + stem.slice(stem.length - suffixLen);
+      }
+
+      const safeStem = escapeHtml(displayStem);
       const safeExt = escapeHtml(ext);
 
       return `
-        <div class="filename-truncate-box" style="max-width:${maxWidthPx}px;" title="${safeFull}">
+        <div class="filename-truncate-box" title="${safeFull}">
           <span class="filename-stem">${safeStem}</span>
           ${safeExt ? `<span class="filename-ext">${safeExt}</span>` : ''}
         </div>
@@ -720,7 +728,7 @@
           `;
         }
 
-        const smartFileNameHtml = formatSmartFilenameHtml(f.original_filename, 220);
+        const smartFileNameHtml = formatSmartFilenameHtml(f.original_filename, 22);
 
         return `
           <tr>

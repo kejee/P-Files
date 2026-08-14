@@ -351,11 +351,21 @@ input:checked + .slider:before {
   background: rgba(255, 255, 255, 0.02);
 }
 
+/* 第一列 (提取码与文件名) 宽度限制与防溢出 */
+.data-table th:first-child,
+.data-table td:first-child {
+  max-width: 320px;
+  width: 320px;
+  overflow: hidden;
+}
+
 .file-name-container {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 320px;
+  max-width: 300px;
+  min-width: 0;
+  overflow: hidden;
 }
 .file-name-text {
   font-weight: 600;
@@ -370,8 +380,9 @@ input:checked + .slider:before {
 .filename-truncate-box {
   display: inline-flex;
   align-items: baseline;
-  max-width: 240px;
+  max-width: 230px;
   min-width: 0;
+  overflow: hidden;
   vertical-align: middle;
   cursor: default;
   transition: var(--transition);
