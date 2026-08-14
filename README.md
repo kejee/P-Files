@@ -27,9 +27,20 @@
 
 ---
 
-## 🚀 快速开始 (Docker 部署)
+## 🚀 快速开始
 
-### 方式 1：Docker Compose (推荐)
+### 方式 1：Linux 服务器一键全自动安装（极力推荐，无 Docker 自动装）
+
+登录服务器后直接执行以下命令（自动检测/安装 Docker，自动生成安全密钥并后台启动）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/<你的用户名>/<仓库名>/main/install.sh | bash
+```
+> 或下载项目后直接运行：`sudo bash install.sh`
+
+---
+
+### 方式 2：使用 Docker Compose 手动部署
 
 1. 克隆或下载本项目至服务器：
 ```bash
@@ -39,7 +50,7 @@ cd P-Files
 
 2. 启动服务：
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
 3. 访问系统：
