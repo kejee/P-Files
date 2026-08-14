@@ -52,7 +52,28 @@ curl -fsSL https://raw.githubusercontent.com/kejee/P-Files/main/install.sh | bas
 
 ---
 
-### 方式 2：使用 Docker Compose 手动部署
+### 方式 2：直接拉取 GitHub 官方镜像运行（免克隆源码）
+
+如果你不想在服务器上下载整个代码仓库，可以直接拉取 GitHub Packages (GHCR) 构建好的官方多架构镜像运行：
+
+```bash
+# 1. 创建本地数据目录
+mkdir -p /opt/p-files/data
+
+# 2. 直接后台运行容器
+docker run -d \
+  --name pfiles-server \
+  --restart unless-stopped \
+  -p 52080:52080 \
+  -v /opt/p-files/data:/app/data \
+  -e ADMIN_USERNAME=useradmin \
+  -e ADMIN_PASSWORD=admin123456 \
+  ghcr.io/kejee/p-files:latest
+```
+
+---
+
+### 方式 3：使用 Docker Compose 手动部署 (源码构建)
 
 1. **克隆仓库**：
 ```bash
@@ -73,7 +94,7 @@ docker compose up -d --build
 
 ---
 
-### 方式 3：本地 Python 源码运行 (开发调试)
+### 方式 4：本地 Python 源码运行 (开发调试)
 
 ```bash
 # 1. 创建虚拟环境并安装依赖
