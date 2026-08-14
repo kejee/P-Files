@@ -7,10 +7,11 @@ import random
 import string
 import uuid
 from typing import Optional, List
+from urllib.parse import quote
 
 from fastapi import (
     FastAPI, File, UploadFile, Form, Request, HTTPException,
-    Depends, status, Response, BackgroundTasks
+    Depends, status, Response, BackgroundTasks, Query, Header
 )
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -272,12 +273,13 @@ async def admin_upload_file(
     max_downloads: int = Form(0), # 0=不限
     allowed_ips: Optional[str] = Form(None),
     remark: Optional[str] = Form(None),
+    is_private: bool = Form(False), # 是否为私有云盘模式 (暂不开启公网分享)
     admin: str = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    管理后台上传并配置分享策略
-    支持多条件独立自由组合（口令、有效时长、两种即焚模式、最大下载次数、IP白名单）
+    管理后台上传并配置分享策略 / 私有云盘暂存
+    支持多条件独立自由组合（口令、有效时长、两种即焚模式、最大下载次数、IP白名单、私有归档）
     """
     # 提取码处理
     share_code = custom_code.strip() if (custom_code and custom_code.strip()) else generate_share_code(6)
@@ -322,6 +324,8 @@ async def admin_upload_file(
     has_pwd = bool(password and password.strip())
     pwd_hash = get_password_hash(password.strip()) if has_pwd else None
 
+    init_status = "stored" if is_private else "active"
+
     # 创建数据库记录
     file_item = FileItem(
         share_code=share_code,
@@ -336,27 +340,79 @@ async def admin_upload_file(
         max_downloads=max_downloads,
         allowed_ips=allowed_ips.strip() if allowed_ips else None,
         remark=remark.strip() if remark else None,
-        status="active"
+        status=init_status
     )
 
     db.add(file_item)
     await db.commit()
     await db.refresh(file_item)
 
+    msg = "已存入私有云盘" if is_private else "文件上传并创建分享成功"
+
     return {
         "code": 200,
-        "message": "文件上传并创建分享成功",
+        "message": msg,
         "data": {
             "id": file_item.id,
             "share_code": file_item.share_code,
             "filename": file_item.original_filename,
-            "size_str": format_file_size(file_item.file_size),
-            "expire_at": file_item.expire_at.strftime("%Y-%m-%d %H:%M:%S") if file_item.expire_at else "永久有效",
-            "burn_mode": file_item.burn_mode,
-            "has_password": file_item.has_password,
-            "allowed_ips": file_item.allowed_ips
+            "file_size": file_item.file_size,
+            "is_private": is_private,
+            "status": file_item.status
         }
     }
+
+@app.get("/api/admin/files/{file_id}/preview")
+async def admin_preview_file(
+    file_id: int,
+    token: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    管理后台多媒体文件在线预览/流式秒播接口
+    原生支持 HTTP 206 Range 分片切片传输，大视频秒级拖动
+    """
+    # 鉴权 (支持 Header 与 Query 传参以适配 HTML5 <video> 标签)
+    auth_token = None
+    if authorization and authorization.startswith("Bearer "):
+        auth_token = authorization.split(" ")[1]
+    elif token:
+        auth_token = token
+    
+    if not auth_token:
+        raise HTTPException(status_code=401, detail="未提供访问凭证")
+    
+    payload = decode_access_token(auth_token)
+    if not payload or payload.get("sub") != settings.ADMIN_USERNAME:
+        raise HTTPException(status_code=401, detail="凭证无效或已过期")
+
+    res = await db.execute(select(FileItem).where(FileItem.id == file_id))
+    f = res.scalar_one_or_none()
+    if not f:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    file_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.stored_filename))
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="底层物理文件已被销毁或不存在")
+
+    # 识别 MIME 类型
+    import mimetypes
+    mime_type, _ = mimetypes.guess_type(f.original_filename)
+    if not mime_type:
+        mime_type = f.content_type or "application/octet-stream"
+
+    # 安全编码文件名 (RFC 5987 标准)
+    quoted_name = quote(f.original_filename)
+
+    return FileResponse(
+        path=file_path,
+        media_type=mime_type,
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{quoted_name}",
+            "Accept-Ranges": "bytes"
+        }
+    )
 
 @app.get("/api/admin/files")
 async def admin_get_files(

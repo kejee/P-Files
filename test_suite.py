@@ -128,5 +128,28 @@ async def test_full_file_sharing_lifecycle():
         assert stats_res.json()["data"]["blocked_count"] >= 1
         print("✅ 10. 管理后台审计与 IP 日志报表验证通过")
 
+        # 11. 测试私有云盘暂存模式 (先存后发)
+        priv_video_content = b"fake-mp4-video-stream-content-bytes" * 50
+        priv_up = await client.post("/api/admin/upload", data={
+            "custom_code": "priv_mov",
+            "is_private": "true"
+        }, files={"file": ("my_movie.mp4", io.BytesIO(priv_video_content), "video/mp4")}, headers=auth_headers)
+        assert priv_up.status_code == 200
+        priv_file_id = priv_up.json()["data"]["id"]
+
+        # 访客公网查询应被拦截
+        priv_query = await client.post("/api/share/query", data={"code": "priv_mov"})
+        assert priv_query.status_code == 410, f"私有文件应禁止公网查询: {priv_query.status_code}"
+        print("✅ 11. 私有云盘暂存模式与公网防访问隔离验证通过")
+
+        # 12. 测试视频多媒体流式在线预览播放 (带 Range 分片请求)
+        preview_res = await client.get(f"/api/admin/files/{priv_file_id}/preview", headers={
+            **auth_headers,
+            "Range": "bytes=0-99"
+        })
+        assert preview_res.status_code in (200, 206), f"预览流返回异常: {preview_res.status_code}"
+        assert "video/mp4" in preview_res.headers.get("content-type", "")
+        print("✅ 12. 多媒体在线流式秒播 (HTTP Range 切片传输) 验证通过")
+
 if __name__ == "__main__":
     asyncio.run(test_full_file_sharing_lifecycle())

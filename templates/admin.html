@@ -142,8 +142,22 @@
           </div>
         </div>
 
-        <!-- 5 项独立自由组合策略卡片 -->
+        <!-- 策略选项网格 -->
         <div class="strategy-grid">
+
+          <!-- 核心策略 0: 私有云盘暂存模式 -->
+          <div class="strategy-card" id="card-sw-private" style="border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.05);">
+            <div class="strategy-header">
+              <div class="strategy-title" style="color: #a5b4fc;"><span>🔒</span> 存入私有云盘</div>
+              <label class="switch">
+                <input type="checkbox" id="sw-private">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="opt-private-body" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 4px;">
+              开启后仅存入后台个人云盘，暂不生成公开分享，可随时一键发起分享。
+            </div>
+          </div>
           
           <!-- 策略 1: 访问口令 -->
           <div class="strategy-card" id="card-sw-pwd">
@@ -226,15 +240,19 @@
               <textarea id="cfg-allowed-ips" class="form-control" placeholder="支持单IP或网段, 逗号分隔&#10;例: 1.2.3.4, 192.168.1.0/24" rows="2" style="padding: 6px 10px; font-size: 0.8rem;"></textarea>
             </div>
           </div>
+        </div>
 
         <!-- 实时上传进度与速度面板 -->
         <div id="upload-progress-panel" style="display: none; margin-top: 18px; padding: 14px 18px; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-glass); border-radius: var(--radius-md);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.88rem;">
             <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #fff;">
               <span id="upload-status-icon">⚡</span>
-              <span id="upload-filename-text" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">上传中...</span>
+              <span id="upload-filename-text" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">上传中...</span>
             </div>
-            <div id="upload-bytes-text" style="font-family: monospace; font-size: 0.82rem; color: var(--text-muted);">0 MB / 0 MB</div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div id="upload-bytes-text" style="font-family: monospace; font-size: 0.82rem; color: var(--text-muted);">0 MB / 0 MB</div>
+              <button type="button" id="btn-cancel-upload" class="btn btn-danger btn-sm" style="padding: 2px 8px; font-size: 0.75rem;">❌ 取消上传</button>
+            </div>
           </div>
 
           <!-- 进度条轨道 -->
@@ -264,6 +282,7 @@
           <input type="text" id="search-input" class="form-control" placeholder="🔍 搜索文件名 / 提取码..." style="width: 200px; padding: 6px 12px; font-size: 0.85rem;">
           <select id="filter-status" class="form-control" style="width: 110px; padding: 6px 10px; font-size: 0.85rem;">
             <option value="all">全部状态</option>
+            <option value="stored">🔒 私有云盘</option>
             <option value="active">活跃中</option>
             <option value="expired">已过期</option>
             <option value="burned">已即焚</option>
@@ -388,6 +407,21 @@
           </div>
           <button type="submit" class="btn btn-primary btn-block" style="margin-top: 16px;">确认修改</button>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框: 多媒体在线流式播放与预览 -->
+  <div id="modal-media-preview" class="modal-overlay">
+    <div class="modal-box" style="max-width: 860px; padding: 0; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--border-glass); overflow: hidden;">
+      <div class="modal-header" style="padding: 14px 20px;">
+        <h3 id="media-preview-title" style="font-size: 1rem; display: flex; align-items: center; gap: 8px; color: #fff; max-width: 700px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          🎬 在线播放
+        </h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeMediaModal()">✕</button>
+      </div>
+      <div class="modal-body" id="media-preview-container" style="padding: 16px; display: flex; justify-content: center; align-items: center; min-height: 240px; background: #000;">
+        <!-- 动态插入 video / img / audio -->
       </div>
     </div>
   </div>
@@ -523,23 +557,36 @@
 
       tbody.innerHTML = data.data.map(f => {
         let statusBadge = `<span class="badge badge-success">分享中</span>`;
+        if (f.status === 'stored') statusBadge = `<span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4);">🔒 私有云盘</span>`;
         if (f.status === 'expired') statusBadge = `<span class="badge badge-warning">已过期</span>`;
         if (f.status === 'burned') statusBadge = `<span class="badge badge-danger">已即焚</span>`;
         if (f.status === 'revoked' || f.status === 'deleted') statusBadge = `<span class="badge badge-gray">已删除</span>`;
 
         let rules = [];
+        if (f.status === 'stored') rules.push(`<span class="badge-rule" style="color:#a5b4fc;">🔒 私有归档</span>`);
         if (f.has_password) rules.push(`<span class="badge-rule">🔑 口令</span>`);
         if (f.burn_mode === 1) rules.push(`<span class="badge-rule" style="color:#fbbf24;">🔥 仅毁链</span>`);
         if (f.burn_mode === 2) rules.push(`<span class="badge-rule" style="color:#fda4af;">💥 物理销毁</span>`);
         if (f.max_downloads > 0) rules.push(`<span class="badge-rule">🎯 限${f.max_downloads}次</span>`);
         if (f.allowed_ips) rules.push(`<span class="badge-rule" style="color:#38bdf8;">🛡️ IP白名单</span>`);
-        if (rules.length === 0) rules.push(`<span style="color:var(--text-dim); font-size:0.75rem;">无特殊限制</span>`);
+        if (rules.length === 0 && f.status !== 'stored') rules.push(`<span style="color:var(--text-dim); font-size:0.75rem;">无特殊限制</span>`);
 
         const safeCode = escapeHtml(f.share_code);
         const safeName = escapeHtml(f.original_filename);
         const safeRemark = escapeHtml(f.remark);
         const safeSize = escapeHtml(f.file_size_formatted);
         const safeExpire = escapeHtml(f.expire_at);
+
+        // 多媒体扩展名识别
+        const ext = f.original_filename.split('.').pop().toLowerCase();
+        let mediaBtn = '';
+        if (['mp4', 'webm', 'mov', 'm4v', 'ogg', 'mkv'].includes(ext)) {
+          mediaBtn = `<button class="btn btn-secondary btn-sm" onclick="playMedia(${f.id}, '${safeName}', 'video')" title="在线流畅播放视频">🎬 播放</button>`;
+        } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+          mediaBtn = `<button class="btn btn-secondary btn-sm" onclick="playMedia(${f.id}, '${safeName}', 'image')" title="全屏高清图片预览">🖼️ 预览</button>`;
+        } else if (['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'].includes(ext)) {
+          mediaBtn = `<button class="btn btn-secondary btn-sm" onclick="playMedia(${f.id}, '${safeName}', 'audio')" title="在线试听音频">🎵 试听</button>`;
+        }
 
         return `
           <tr>
@@ -558,19 +605,75 @@
               <span style="color:var(--accent-cyan);">👀 ${f.view_count}</span> / 
               <span style="color:var(--accent-emerald); font-weight:600;">⬇️ ${f.download_count}</span>
             </td>
-            <td style="font-size:0.8rem; color:var(--text-muted);">${safeExpire}</td>
+            <td style="font-size:0.8rem; color:var(--text-muted);">${f.status === 'stored' ? '未开放分享' : safeExpire}</td>
             <td>${statusBadge}</td>
             <td style="text-align:right;">
-              <div style="display:inline-flex; gap:6px;">
-                <button class="btn btn-secondary btn-sm" onclick="copyShare('${safeCode}')" title="复制分享链接">📋 复制</button>
+              <div style="display:inline-flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+                ${mediaBtn}
+                ${f.status === 'active' ? `<button class="btn btn-secondary btn-sm" onclick="copyShare('${safeCode}')" title="复制分享链接">📋 复制</button>` : ''}
                 <button class="btn btn-secondary btn-sm" onclick="viewLogs(${f.id}, '${safeCode}')" title="查看访问IP与地理位置明细">📊 日志</button>
-                ${f.status !== 'active' ? `<button class="btn btn-secondary btn-sm" onclick="openReshare(${f.id}, '${safeCode}')">🔄 重开</button>` : ''}
-                <button class="btn btn-danger btn-sm" onclick="deleteFile(${f.id})">🗑️</button>
+                ${f.status !== 'active' ? `<button class="btn btn-primary btn-sm" onclick="openReshare(${f.id}, '${safeCode}')">📤 分享</button>` : ''}
+                <button class="btn btn-danger btn-sm" onclick="deleteFile(${f.id})" title="删除文件">🗑️</button>
               </div>
             </td>
           </tr>
         `;
       }).join('');
+    }
+
+    // 全局当前上传 XHR 对象 (支持取消上传)
+    let currentUploadXhr = null;
+
+    document.getElementById('btn-cancel-upload').addEventListener('click', () => {
+      if (currentUploadXhr) {
+        currentUploadXhr.abort();
+        currentUploadXhr = null;
+        document.getElementById('upload-progress-panel').style.display = 'none';
+        const btn = document.getElementById('btn-upload-submit');
+        btn.disabled = false;
+        btn.innerText = '🚀 开始上传并生成分享';
+        showToast('已取消本次文件上传');
+      }
+    });
+
+    // 多媒体流式播放与预览
+    function playMedia(fileId, filename, type) {
+      const title = document.getElementById('media-preview-title');
+      const container = document.getElementById('media-preview-container');
+      const typeLabel = type === 'video' ? '🎬 视频播放' : type === 'image' ? '🖼️ 高清预览' : '🎵 音频播放';
+      title.innerText = `${typeLabel}: ${filename}`;
+
+      const mediaUrl = `/api/admin/files/${fileId}/preview?token=${encodeURIComponent(token)}`;
+
+      if (type === 'video') {
+        container.innerHTML = `
+          <video controls autoplay playsinline style="max-width: 100%; max-height: 72vh; width: 100%; border-radius: 8px; outline: none; background: #000;">
+            <source src="${mediaUrl}">
+            您的浏览器不支持 HTML5 视频播放
+          </video>
+        `;
+      } else if (type === 'image') {
+        container.innerHTML = `
+          <img src="${mediaUrl}" style="max-width: 100%; max-height: 75vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);" alt="${filename}">
+        `;
+      } else if (type === 'audio') {
+        container.innerHTML = `
+          <div style="width: 100%; padding: 30px; text-align: center;">
+            <div style="font-size: 3.5rem; margin-bottom: 16px;">🎵</div>
+            <audio controls autoplay style="width: 100%; max-width: 500px;">
+              <source src="${mediaUrl}">
+              您的浏览器不支持 HTML5 音频播放
+            </audio>
+          </div>
+        `;
+      }
+      openModal('modal-media-preview');
+    }
+
+    function closeMediaModal() {
+      const container = document.getElementById('media-preview-container');
+      container.innerHTML = ''; // 立即销毁播放器以停止后台音频/视频缓冲
+      closeModal('modal-media-preview');
     }
 
     // 上传处理
@@ -581,14 +684,14 @@
         return;
       }
 
+      const selectedFile = fileInput.files[0];
       const btn = document.getElementById('btn-upload-submit');
-      btn.disabled = true;
-      btn.innerText = '正在上传与加密存储...';
 
       const formData = new FormData();
-      formData.append('file', fileInput.files[0]);
+      formData.append('file', selectedFile);
       formData.append('custom_code', document.getElementById('cfg-custom-code').value.trim());
       formData.append('remark', document.getElementById('cfg-remark').value.trim());
+      formData.append('is_private', document.getElementById('sw-private').checked);
 
       // 策略 1: 口令
       if (document.getElementById('sw-pwd').checked) {
@@ -669,6 +772,7 @@
       let lastLoaded = 0;
 
       const xhr = new XMLHttpRequest();
+      currentUploadXhr = xhr;
       xhr.open('POST', '/api/admin/upload', true);
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
