@@ -17,11 +17,23 @@ class IPLocator:
 
     @classmethod
     def init(cls, db_path: str = XDB_PATH):
+        import shutil
         if not os.path.exists(db_path):
-            # 尝试从上一级或当前目录寻找
-            alt_path = os.path.join(os.path.dirname(__file__), "ip2region.xdb")
-            if os.path.exists(alt_path):
-                db_path = alt_path
+            # 1. 优先尝试从内置备份目录恢复 (应对 Docker 空卷挂载覆盖)
+            builtin_path = os.path.join(os.path.dirname(__file__), "builtin_ip2region.xdb")
+            if os.path.exists(builtin_path):
+                try:
+                    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+                    shutil.copyfile(builtin_path, db_path)
+                    logger.info(f"已自动从内置备份恢复离线 IP 库至: {db_path}")
+                except Exception as err:
+                    logger.error(f"复制内置 IP 库失败: {err}")
+            
+            # 2. 尝试从上一级或当前目录寻找
+            if not os.path.exists(db_path):
+                alt_path = os.path.join(os.path.dirname(__file__), "ip2region.xdb")
+                if os.path.exists(alt_path):
+                    db_path = alt_path
 
         if os.path.exists(db_path):
             try:

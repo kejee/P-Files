@@ -17,8 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制源码
+# 复制源码并保留一份离线 IP 库内置备份
 COPY . .
+RUN if [ -f "./data/ip2region.xdb" ]; then cp ./data/ip2region.xdb /app/builtin_ip2region.xdb; fi
 
 # 确保数据持久化目录存在
 RUN mkdir -p /app/data /app/data/uploads

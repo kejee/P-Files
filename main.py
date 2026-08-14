@@ -151,6 +151,13 @@ async def page_login(request: Request):
     """管理员登录页"""
     return templates.TemplateResponse(request=request, name="login.html")
 
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+@app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+async def favicon():
+    svg_icon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">📦</text></svg>'
+    return Response(content=svg_icon, media_type="image/svg+xml")
+
 @app.get("/admin", response_class=HTMLResponse)
 async def page_admin(request: Request):
     """管理员控制台页面"""
