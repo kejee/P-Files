@@ -102,8 +102,8 @@
 
       <!-- IP 与地区提示 -->
       <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--border-glass); font-size: 0.78rem; color: var(--text-dim);">
-        您的访问 IP: <span id="user-ip" style="color: var(--text-muted);">检测中...</span>
-        <span id="user-geo" style="margin-left: 6px; color: var(--accent-cyan);"></span>
+        您的访问 IP: <span id="user-ip" style="color: #fff; font-family: monospace;">{{ client_ip or '未知' }}</span>
+        <span id="user-geo" style="margin-left: 6px; color: var(--accent-cyan);">{% if client_location %}({{ client_location }}){% endif %}</span>
       </div>
 
     </div>

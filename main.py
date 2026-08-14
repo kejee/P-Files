@@ -139,12 +139,24 @@ async def get_current_admin(
 @app.get("/", response_class=HTMLResponse)
 async def page_index(request: Request):
     """访客公共提取页"""
-    return templates.TemplateResponse(request=request, name="index.html", context={"code": ""})
+    client_ip = get_real_client_ip(request)
+    location = IPLocator.get_location(client_ip)
+    return templates.TemplateResponse(
+        request=request, 
+        name="index.html", 
+        context={"code": "", "client_ip": client_ip, "client_location": location}
+    )
 
 @app.get("/s/{code}", response_class=HTMLResponse)
 async def page_share_direct(request: Request, code: str):
     """直接通过链接访问提取页"""
-    return templates.TemplateResponse(request=request, name="index.html", context={"code": code})
+    client_ip = get_real_client_ip(request)
+    location = IPLocator.get_location(client_ip)
+    return templates.TemplateResponse(
+        request=request, 
+        name="index.html", 
+        context={"code": code, "client_ip": client_ip, "client_location": location}
+    )
 
 @app.get("/login", response_class=HTMLResponse)
 async def page_login(request: Request):
