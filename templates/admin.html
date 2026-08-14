@@ -227,9 +227,29 @@
             </div>
           </div>
 
+        <!-- 实时上传进度与速度面板 -->
+        <div id="upload-progress-panel" style="display: none; margin-top: 18px; padding: 14px 18px; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-glass); border-radius: var(--radius-md);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.88rem;">
+            <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #fff;">
+              <span id="upload-status-icon">⚡</span>
+              <span id="upload-filename-text" style="max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">上传中...</span>
+            </div>
+            <div id="upload-bytes-text" style="font-family: monospace; font-size: 0.82rem; color: var(--text-muted);">0 MB / 0 MB</div>
+          </div>
+
+          <!-- 进度条轨道 -->
+          <div style="width: 100%; height: 8px; background: rgba(255, 255, 255, 0.08); border-radius: 4px; overflow: hidden; margin-bottom: 8px;">
+            <div id="upload-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent-cyan)); border-radius: 4px; transition: width 0.15s ease-out;"></div>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-dim); flex-wrap: wrap; gap: 6px;">
+            <div>进度: <span id="upload-percent-text" style="font-weight: 700; color: var(--primary);">0%</span></div>
+            <div>传输速度: <span id="upload-speed-text" style="font-weight: 600; color: var(--accent-cyan); font-family: monospace;">0 KB/s</span></div>
+            <div>预计剩余: <span id="upload-eta-text" style="color: var(--text-muted);">计算中...</span></div>
+          </div>
         </div>
 
-        <button type="submit" id="btn-upload-submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.95rem;">
+        <button type="submit" id="btn-upload-submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.95rem; margin-top: 14px;">
           🚀 开始上传并生成分享
         </button>
       </form>
@@ -597,30 +617,135 @@
         formData.append('allowed_ips', document.getElementById('cfg-allowed-ips').value.trim());
       }
 
-      try {
-        const res = await fetch('/api/admin/upload', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData
-        });
-        const data = await res.json();
-        if (res.status === 200) {
-          showToast(`✅ 上传成功！提取码: ${data.data.share_code}`);
-          // 重置表单
-          fileInput.value = '';
-          document.getElementById('file-preview-name').innerText = '点击选择文件，或将文件拖放到此处';
-          document.getElementById('file-preview-size').innerText = '支持任意类型文件上传';
-          document.getElementById('cfg-custom-code').value = '';
-          loadDashboard();
-        } else {
-          showToast(data.detail || '上传失败', true);
+      // 格式化传输速度
+      function formatTransferSpeed(bytesPerSec) {
+        if (bytesPerSec <= 0) return '0 KB/s';
+        if (bytesPerSec < 1024 * 1024) return (bytesPerSec / 1024).toFixed(1) + ' KB/s';
+        return (bytesPerSec / (1024 * 1024)).toFixed(2) + ' MB/s';
+      }
+
+      // 格式化文件大小
+      function formatSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
+      // 格式化时间秒
+      function formatEta(seconds) {
+        if (!isFinite(seconds) || seconds <= 0) return '即将完成...';
+        if (seconds < 60) return `约 ${seconds} 秒`;
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `约 ${mins} 分 ${secs} 秒`;
+      }
+
+      // 进度条 DOM
+      const progressPanel = document.getElementById('upload-progress-panel');
+      const progressBar = document.getElementById('upload-progress-bar');
+      const progressPercent = document.getElementById('upload-percent-text');
+      const progressSpeed = document.getElementById('upload-speed-text');
+      const progressEta = document.getElementById('upload-eta-text');
+      const progressBytes = document.getElementById('upload-bytes-text');
+      const progressFilename = document.getElementById('upload-filename-text');
+      const progressIcon = document.getElementById('upload-status-icon');
+
+      progressFilename.innerText = selectedFile.name;
+      progressBytes.innerText = `0 B / ${formatSize(selectedFile.size)}`;
+      progressBar.style.width = '0%';
+      progressPercent.innerText = '0%';
+      progressSpeed.innerText = '0 KB/s';
+      progressEta.innerText = '计算中...';
+      progressIcon.innerText = '⚡';
+      progressPanel.style.display = 'block';
+
+      btn.disabled = true;
+      btn.innerText = '⏳ 文件上传中...';
+
+      let startTime = performance.now();
+      let lastTime = startTime;
+      let lastLoaded = 0;
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/admin/upload', true);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+      // 上传进度监听
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.min(100, Math.round((e.loaded / e.total) * 100));
+          progressBar.style.width = percent + '%';
+          progressPercent.innerText = percent + '%';
+          progressBytes.innerText = `${formatSize(e.loaded)} / ${formatSize(e.total)}`;
+
+          const now = performance.now();
+          const timeElapsed = (now - lastTime) / 1000;
+
+          // 每 0.2 秒计算并平滑刷新一次速度与剩余时间
+          if (timeElapsed >= 0.2 || e.loaded === e.total) {
+            const bytesChunk = e.loaded - lastLoaded;
+            const currentSpeed = bytesChunk / timeElapsed; // Bytes per second
+            progressSpeed.innerText = formatTransferSpeed(currentSpeed);
+
+            const remainingBytes = e.total - e.loaded;
+            const remainingSec = currentSpeed > 0 ? Math.ceil(remainingBytes / currentSpeed) : 0;
+            progressEta.innerText = percent === 100 ? '正在落盘保存...' : formatEta(remainingSec);
+
+            lastTime = now;
+            lastLoaded = e.loaded;
+          }
+
+          if (percent === 100) {
+            progressIcon.innerText = '💾';
+            btn.innerText = '💾 服务端正在校验并存储文件...';
+          }
         }
-      } catch (err) {
-        showToast('网络上传异常', true);
-      } finally {
+      };
+
+      xhr.onload = () => {
         btn.disabled = false;
         btn.innerText = '🚀 开始上传并生成分享';
-      }
+
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status === 200) {
+            progressIcon.innerText = '✅';
+            progressEta.innerText = '上传完成';
+            progressBar.style.background = 'var(--accent-emerald)';
+            showToast(`✅ 上传成功！提取码: ${data.data.share_code}`);
+
+            // 重置表单
+            fileInput.value = '';
+            document.getElementById('file-preview-name').innerText = '点击选择文件，或将文件拖放到此处';
+            document.getElementById('file-preview-size').innerText = '支持任意类型文件上传';
+            document.getElementById('cfg-custom-code').value = '';
+            
+            setTimeout(() => {
+              progressPanel.style.display = 'none';
+              progressBar.style.background = 'linear-gradient(90deg, var(--primary), var(--accent-cyan))';
+            }, 3500);
+
+            loadDashboard();
+          } else {
+            showToast(data.detail || '上传失败', true);
+            progressPanel.style.display = 'none';
+          }
+        } catch (err) {
+          showToast('服务器响应解析失败', true);
+          progressPanel.style.display = 'none';
+        }
+      };
+
+      xhr.onerror = () => {
+        btn.disabled = false;
+        btn.innerText = '🚀 开始上传并生成分享';
+        progressPanel.style.display = 'none';
+        showToast('网络连接中断，上传失败', true);
+      };
+
+      xhr.send(formData);
     });
 
     // 通用剪贴板复制函数 (完美兼容 HTTP 与 HTTPS 环境)
