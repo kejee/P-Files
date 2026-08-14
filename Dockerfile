@@ -24,7 +24,7 @@ COPY . .
 RUN mkdir -p /app/data /app/data/uploads
 
 # 暴露服务端口
-EXPOSE 8080
+EXPOSE 52080
 
 # 启动 Uvicorn 高性能异步服务
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "52080"]

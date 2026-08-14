@@ -24,7 +24,7 @@ async def test_full_file_sharing_lifecycle():
         
         # 1. 登录管理员后台
         login_res = await client.post("/api/admin/login", data={
-            "username": "admin",
+            "username": "useradmin",
             "password": settings.ADMIN_PASSWORD
         })
         assert login_res.status_code == 200, f"Login failed: {login_res.text}"

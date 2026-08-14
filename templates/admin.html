@@ -475,6 +475,16 @@
       }
     }
 
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     async function loadFiles() {
       const search = document.getElementById('search-input').value.trim();
       const statusFilter = document.getElementById('filter-status').value;
@@ -505,30 +515,36 @@
         if (f.allowed_ips) rules.push(`<span class="badge-rule" style="color:#38bdf8;">🛡️ IP白名单</span>`);
         if (rules.length === 0) rules.push(`<span style="color:var(--text-dim); font-size:0.75rem;">无特殊限制</span>`);
 
+        const safeCode = escapeHtml(f.share_code);
+        const safeName = escapeHtml(f.original_filename);
+        const safeRemark = escapeHtml(f.remark);
+        const safeSize = escapeHtml(f.file_size_formatted);
+        const safeExpire = escapeHtml(f.expire_at);
+
         return `
           <tr>
             <td>
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="font-family:monospace; background:rgba(99,102,241,0.15); color:#a5b4fc; padding:2px 6px; border-radius:4px; font-weight:700;">
-                  ${f.share_code}
+                  ${safeCode}
                 </span>
-                <span style="font-weight:600; color:#fff; word-break:break-all;">${f.original_filename}</span>
+                <span style="font-weight:600; color:#fff; word-break:break-all;">${safeName}</span>
               </div>
-              ${f.remark ? `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">📝 ${f.remark}</div>` : ''}
+              ${f.remark ? `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">📝 ${safeRemark}</div>` : ''}
             </td>
-            <td>${f.file_size_formatted}</td>
+            <td>${safeSize}</td>
             <td><div style="display:flex; flex-wrap:wrap; gap:4px;">${rules.join('')}</div></td>
             <td>
               <span style="color:var(--accent-cyan);">👀 ${f.view_count}</span> / 
               <span style="color:var(--accent-emerald); font-weight:600;">⬇️ ${f.download_count}</span>
             </td>
-            <td style="font-size:0.8rem; color:var(--text-muted);">${f.expire_at}</td>
+            <td style="font-size:0.8rem; color:var(--text-muted);">${safeExpire}</td>
             <td>${statusBadge}</td>
             <td style="text-align:right;">
               <div style="display:inline-flex; gap:6px;">
-                <button class="btn btn-secondary btn-sm" onclick="copyShare('${f.share_code}')" title="复制分享链接">📋 复制</button>
-                <button class="btn btn-secondary btn-sm" onclick="viewLogs(${f.id}, '${f.share_code}')" title="查看访问IP与地理位置明细">📊 日志</button>
-                ${f.status !== 'active' ? `<button class="btn btn-secondary btn-sm" onclick="openReshare(${f.id}, '${f.share_code}')">🔄 重开</button>` : ''}
+                <button class="btn btn-secondary btn-sm" onclick="copyShare('${safeCode}')" title="复制分享链接">📋 复制</button>
+                <button class="btn btn-secondary btn-sm" onclick="viewLogs(${f.id}, '${safeCode}')" title="查看访问IP与地理位置明细">📊 日志</button>
+                ${f.status !== 'active' ? `<button class="btn btn-secondary btn-sm" onclick="openReshare(${f.id}, '${safeCode}')">🔄 重开</button>` : ''}
                 <button class="btn btn-danger btn-sm" onclick="deleteFile(${f.id})">🗑️</button>
               </div>
             </td>
@@ -641,12 +657,16 @@
           if (l.action === 'blocked_ip') actBadge = `<span class="badge badge-danger">🛡️ 拦截IP</span>`;
           if (l.action === 'wrong_pwd') actBadge = `<span class="badge badge-warning">口令错误</span>`;
 
+          const safeIp = escapeHtml(l.ip);
+          const safeLocation = escapeHtml(l.location);
+          const safeTime = escapeHtml(l.created_at);
+
           return `
             <tr>
               <td>${actBadge}</td>
-              <td style="font-family:monospace; color:#fff;">${l.ip}</td>
-              <td><span style="color:var(--accent-cyan); font-weight:500;">${l.location}</span></td>
-              <td style="font-size:0.8rem; color:var(--text-muted);">${l.created_at}</td>
+              <td style="font-family:monospace; color:#fff;">${safeIp}</td>
+              <td><span style="color:var(--accent-cyan); font-weight:500;">${safeLocation}</span></td>
+              <td style="font-size:0.8rem; color:var(--text-muted);">${safeTime}</td>
             </tr>
           `;
         }).join('');

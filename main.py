@@ -55,10 +55,21 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.VERSION,
-    docs_url="/api/docs",
+    docs_url="/api/docs" if settings.ENABLE_DOCS else None,
     redoc_url=None,
+    openapi_url="/api/openapi.json" if settings.ENABLE_DOCS else None,
     lifespan=lifespan
 )
+
+# 全局安全响应头中间件
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 # 跨域与基础安全头
 app.add_middleware(
@@ -249,16 +260,31 @@ async def admin_upload_file(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail=f"提取码 [{share_code}] 已存在，请换一个或留空自动生成")
 
-    # 安全存储文件名（UUID 物理隔离，杜绝路径穿越）
-    file_ext = os.path.splitext(file.filename)[1]
-    stored_filename = f"{uuid.uuid4().hex}{file_ext}"
-    target_path = os.path.join(settings.UPLOAD_DIR, stored_filename)
+    # 安全处理原始文件名与扩展名（杜绝任何路径穿越特殊字符）
+    clean_orig_name = os.path.basename(file.filename or "unknown_file")
+    raw_ext = os.path.splitext(clean_orig_name)[1]
+    safe_ext = "".join(c for c in raw_ext if c.isalnum() or c == ".")[:16] # 严格过滤扩展名
+    stored_filename = f"{uuid.uuid4().hex}{safe_ext}"
+    
+    target_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, stored_filename))
+    if not target_path.startswith(os.path.abspath(settings.UPLOAD_DIR)):
+        raise HTTPException(status_code=400, detail="非法文件存储路径")
 
+    # 流式写入并实时限制最大文件体积 (防 DoS 磁盘占满攻击)
+    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     file_size = 0
     with open(target_path, "wb") as buffer:
-        while chunk := await file.read(1024 * 1024): # 1MB 流式写入
-            buffer.write(chunk)
+        while chunk := await file.read(1024 * 1024): # 1MB 逐块写入
             file_size += len(chunk)
+            if file_size > max_bytes:
+                buffer.close()
+                if os.path.exists(target_path):
+                    os.remove(target_path)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"文件体积过大，单文件上传限制为 {settings.MAX_UPLOAD_SIZE_MB} MB"
+                )
+            buffer.write(chunk)
 
     # 计算过期时间
     expire_at = None
@@ -717,8 +743,11 @@ async def share_download_file(
         if not authorized:
             raise HTTPException(status_code=401, detail="请先提供正确的查看口令")
 
-    # 4. 物理文件存在性检查
-    file_path = os.path.join(settings.UPLOAD_DIR, f.stored_filename)
+    # 4. 物理文件存在性与路径沙箱校验 (彻底防御路径穿越攻击)
+    file_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.stored_filename))
+    if not file_path.startswith(os.path.abspath(settings.UPLOAD_DIR)):
+        raise HTTPException(status_code=403, detail="非法文件访问路径")
+
     if not os.path.exists(file_path):
         f.status = "deleted"
         await db.commit()

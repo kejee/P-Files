@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{os.path.join(DATA_DIR, 'pfiles.db')}")
     
     # 安全配置
-    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
+    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "useradmin")
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "admin123456") # 首次运行默认密码，可在后台修改
     SECRET_KEY: str = os.getenv("SECRET_KEY", "pfiles-super-secret-key-change-it-in-production-2026")
     ALGORITHM: str = "HS256"
@@ -27,7 +27,9 @@ class Settings(BaseSettings):
     
     # 端口与服务
     HOST: str = os.getenv("HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("PORT", "8080"))
+    PORT: int = int(os.getenv("PORT", "52080")) # 高位端口
+    ENABLE_DOCS: bool = os.getenv("ENABLE_DOCS", "false").lower() == "true" # 生产环境默认关闭 OpenAPI 文档暴露
+    MAX_UPLOAD_SIZE_MB: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "2048")) # 最大允许上传 2GB
 
     class Config:
         env_file = ".env"

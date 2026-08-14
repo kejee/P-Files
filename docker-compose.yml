@@ -6,15 +6,16 @@ services:
     container_name: pfiles-server
     restart: unless-stopped
     ports:
-      - "8080:8080" # 宿主机端口:容器端口
+      - "52080:52080" # 宿主机高位端口:容器端口
     volumes:
       # 持久化挂载数据目录（包含 SQLite 数据库、上传文件和离线 IP 库）
       - ./data:/app/data
     environment:
       - HOST=0.0.0.0
-      - PORT=8080
-      - ADMIN_USERNAME=admin # 默认管理员用户名
+      - PORT=52080
+      - ADMIN_USERNAME=useradmin # 默认管理员用户名
       - ADMIN_PASSWORD=admin123456 # 默认管理员密码 (首次登录后建议后台修改)
       - SECRET_KEY=pfiles-super-secure-custom-key-change-it-2026
       - RATE_LIMIT_MAX_ATTEMPTS=5
       - RATE_LIMIT_WINDOW_SECONDS=300
+      - ENABLE_DOCS=false

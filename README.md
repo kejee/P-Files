@@ -43,9 +43,9 @@ docker compose up -d
 ```
 
 3. 访问系统：
-- **公共文件提取页**：`http://服务器IP:8080`
-- **管理控制台**：`http://服务器IP:8080/admin`
-  - 默认用户名：`admin`
+- **公共文件提取页**：`http://服务器IP:52080`
+- **管理控制台**：`http://服务器IP:52080/admin`
+  - 默认用户名：`useradmin`
   - 默认初始密码：`admin123456`（登录后可在后台右上角直接修改）
 
 ---
@@ -60,9 +60,9 @@ docker build -t pfiles:latest .
 docker run -d \
   --name pfiles-server \
   --restart unless-stopped \
-  -p 8080:8080 \
+  -p 52080:52080 \
   -v $(pwd)/data:/app/data \
-  -e ADMIN_USERNAME=admin \
+  -e ADMIN_USERNAME=useradmin \
   -e ADMIN_PASSWORD=admin123456 \
   pfiles:latest
 ```
