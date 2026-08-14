@@ -160,7 +160,15 @@ async def favicon():
 
 @app.get("/admin", response_class=HTMLResponse)
 async def page_admin(request: Request):
-    """管理员控制台页面"""
+    """管理员控制台页面 (服务端鉴权拦截，杜绝未登录闪现)"""
+    token = request.cookies.get("admin_token")
+    if not token:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+    payload = decode_access_token(token)
+    if not payload or payload.get("sub") != settings.ADMIN_USERNAME:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
     return templates.TemplateResponse(request=request, name="admin.html")
 
 # ----------------- 管理员 API -----------------

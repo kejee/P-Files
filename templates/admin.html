@@ -240,16 +240,16 @@
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
         <h3 style="font-size: 1.15rem;">📁 文件分享与审计列表</h3>
         
-        <div style="display: flex; gap: 10px; align-items: center;">
-          <input type="text" id="search-input" class="form-control" placeholder="🔍 搜索文件名 / 提取码..." style="width: 220px; padding: 6px 12px; font-size: 0.85rem;">
-          <select id="filter-status" class="form-control" style="width: 120px; padding: 6px 10px; font-size: 0.85rem;">
+        <div class="search-toolbar" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <input type="text" id="search-input" class="form-control" placeholder="🔍 搜索文件名 / 提取码..." style="width: 200px; padding: 6px 12px; font-size: 0.85rem;">
+          <select id="filter-status" class="form-control" style="width: 110px; padding: 6px 10px; font-size: 0.85rem;">
             <option value="all">全部状态</option>
             <option value="active">活跃中</option>
             <option value="expired">已过期</option>
             <option value="burned">已即焚</option>
             <option value="revoked">已取消</option>
           </select>
-          <button id="btn-refresh" class="btn btn-secondary btn-sm">🔄 刷新</button>
+          <button id="btn-refresh" class="btn btn-secondary btn-sm" style="white-space: nowrap;">🔄 刷新</button>
         </div>
       </div>
 
