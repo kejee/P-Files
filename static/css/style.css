@@ -301,15 +301,18 @@ input:checked + .slider:before {
   margin-bottom: 8px;
 }
 
-/* 徽章 Badge */
+/* 状态标签 Badge */
 .badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 20px;
   font-size: 0.75rem;
   font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 .badge-success { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
 .badge-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
@@ -321,27 +324,46 @@ input:checked + .slider:before {
 .table-responsive {
   width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .data-table {
   width: 100%;
+  min-width: 780px; /* 保护表格在小屏幕下不被强行压扁，可横向平滑滚动 */
   border-collapse: collapse;
   text-align: left;
   font-size: 0.88rem;
 }
 .data-table th {
-  padding: 12px 14px;
+  padding: 14px 12px;
   color: var(--text-dim);
   font-weight: 600;
   border-bottom: 1px solid var(--border-glass);
+  white-space: nowrap;
 }
 .data-table td {
-  padding: 14px;
+  padding: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   color: var(--text-main);
   vertical-align: middle;
+  white-space: nowrap;
 }
 .data-table tr:hover td {
   background: rgba(255, 255, 255, 0.02);
+}
+
+.file-name-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 280px;
+}
+.file-name-text {
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
 }
 
 /* 模态框 Modal */

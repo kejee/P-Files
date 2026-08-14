@@ -556,19 +556,27 @@
       }
 
       tbody.innerHTML = data.data.map(f => {
-        let statusBadge = `<span class="badge badge-success">分享中</span>`;
+        const isPhysicallyDestroyed = (f.burn_mode === 2 && (f.status === 'burned' || f.status === 'revoked'));
+
+        let statusBadge = `<span class="badge badge-success">● 分享中</span>`;
         if (f.status === 'stored') statusBadge = `<span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4);">🔒 私有云盘</span>`;
-        if (f.status === 'expired') statusBadge = `<span class="badge badge-warning">已过期</span>`;
-        if (f.status === 'burned') statusBadge = `<span class="badge badge-danger">已即焚</span>`;
-        if (f.status === 'revoked' || f.status === 'deleted') statusBadge = `<span class="badge badge-gray">已删除</span>`;
+        if (f.status === 'expired') statusBadge = `<span class="badge badge-warning">⏳ 已过期</span>`;
+        if (f.status === 'burned') {
+          if (f.burn_mode === 2) {
+            statusBadge = `<span class="badge badge-danger">💥 已物理销毁</span>`;
+          } else {
+            statusBadge = `<span class="badge badge-warning">🔥 仅链接失效</span>`;
+          }
+        }
+        if (f.status === 'revoked' || f.status === 'deleted') statusBadge = `<span class="badge badge-gray">🗑️ 已删除</span>`;
 
         let rules = [];
-        if (f.status === 'stored') rules.push(`<span class="badge-rule" style="color:#a5b4fc;">🔒 私有归档</span>`);
+        if (f.status === 'stored') rules.push(`<span class="badge-rule" style="color:#a5b4fc;">🔒 私有</span>`);
         if (f.has_password) rules.push(`<span class="badge-rule">🔑 口令</span>`);
         if (f.burn_mode === 1) rules.push(`<span class="badge-rule" style="color:#fbbf24;">🔥 仅毁链</span>`);
         if (f.burn_mode === 2) rules.push(`<span class="badge-rule" style="color:#fda4af;">💥 物理销毁</span>`);
         if (f.max_downloads > 0) rules.push(`<span class="badge-rule">🎯 限${f.max_downloads}次</span>`);
-        if (f.allowed_ips) rules.push(`<span class="badge-rule" style="color:#38bdf8;">🛡️ IP白名单</span>`);
+        if (f.allowed_ips) rules.push(`<span class="badge-rule" style="color:#38bdf8;">🛡️ 白名单</span>`);
         if (rules.length === 0 && f.status !== 'stored') rules.push(`<span style="color:var(--text-dim); font-size:0.75rem;">无特殊限制</span>`);
 
         const safeCode = escapeHtml(f.share_code);
@@ -581,39 +589,58 @@
         const ext = f.original_filename.split('.').pop().toLowerCase();
         let mediaBtn = '';
         if (['mp4', 'webm', 'mov', 'm4v', 'ogg', 'mkv'].includes(ext)) {
-          mediaBtn = `<button class="btn btn-secondary btn-sm" onclick="playMedia(${f.id}, '${safeName}', 'video')" title="在线流畅播放视频">🎬 播放</button>`;
+          if (isPhysicallyDestroyed) {
+            mediaBtn = `<button class="btn btn-secondary btn-sm" style="opacity:0.4; cursor:not-allowed;" onclick="showToast('⚠️ 该文件已执行彻底物理销毁，源文件已从服务器磁盘抹除，无法播放', true)" title="源文件已物理销毁">🎬 播放</button>`;
+          } else {
+            mediaBtn = `<button class="btn btn-secondary btn-sm" onclick="playMedia(${f.id}, '${safeName}', 'video')" title="在线流畅播放视频">🎬 播放</button>`;
+          }
         } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
-          mediaBtn = `<button class="btn btn-secondary btn-sm" onclick="playMedia(${f.id}, '${safeName}', 'image')" title="全屏高清图片预览">🖼️ 预览</button>`;
+          if (isPhysicallyDestroyed) {
+            mediaBtn = `<button class="btn btn-secondary btn-sm" style="opacity:0.4; cursor:not-allowed;" onclick="showToast('⚠️ 该文件已彻底物理销毁，无法预览', true)" title="源文件已物理销毁">🖼️ 预览</button>`;
+          } else {
+            mediaBtn = `<button class="btn btn-secondary btn-sm" onclick="playMedia(${f.id}, '${safeName}', 'image')" title="全屏高清图片预览">🖼️ 预览</button>`;
+          }
         } else if (['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'].includes(ext)) {
-          mediaBtn = `<button class="btn btn-secondary btn-sm" onclick="playMedia(${f.id}, '${safeName}', 'audio')" title="在线试听音频">🎵 试听</button>`;
+          if (isPhysicallyDestroyed) {
+            mediaBtn = `<button class="btn btn-secondary btn-sm" style="opacity:0.4; cursor:not-allowed;" onclick="showToast('⚠️ 该文件已彻底物理销毁，无法播放', true)" title="源文件已物理销毁">🎵 试听</button>`;
+          } else {
+            mediaBtn = `<button class="btn btn-secondary btn-sm" onclick="playMedia(${f.id}, '${safeName}', 'audio')" title="在线试听音频">🎵 试听</button>`;
+          }
+        }
+
+        // 分享按钮判断 (物理销毁后不可再分享)
+        let shareBtn = '';
+        if (f.status === 'active') {
+          shareBtn = `<button class="btn btn-secondary btn-sm" onclick="copyShare('${safeCode}')" title="复制分享链接">📋 复制</button>`;
+        } else if (!isPhysicallyDestroyed) {
+          shareBtn = `<button class="btn btn-primary btn-sm" onclick="openReshare(${f.id}, '${safeCode}')" title="重新开启分享">📤 分享</button>`;
         }
 
         return `
           <tr>
             <td>
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-family:monospace; background:rgba(99,102,241,0.15); color:#a5b4fc; padding:2px 6px; border-radius:4px; font-weight:700;">
+              <div class="file-name-container">
+                <span style="font-family:monospace; background:rgba(99,102,241,0.15); color:#a5b4fc; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.85rem; flex-shrink:0;">
                   ${safeCode}
                 </span>
-                <span style="font-weight:600; color:#fff; word-break:break-all;">${safeName}</span>
+                <span class="file-name-text" title="${safeName}">${safeName}</span>
               </div>
-              ${f.remark ? `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">📝 ${safeRemark}</div>` : ''}
+              ${f.remark ? `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:3px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safeRemark}">📝 ${safeRemark}</div>` : ''}
             </td>
-            <td>${safeSize}</td>
-            <td><div style="display:flex; flex-wrap:wrap; gap:4px;">${rules.join('')}</div></td>
+            <td style="font-family:monospace;">${safeSize}</td>
+            <td><div style="display:flex; flex-wrap:nowrap; gap:4px;">${rules.join('')}</div></td>
             <td>
               <span style="color:var(--accent-cyan);">👀 ${f.view_count}</span> / 
               <span style="color:var(--accent-emerald); font-weight:600;">⬇️ ${f.download_count}</span>
             </td>
-            <td style="font-size:0.8rem; color:var(--text-muted);">${f.status === 'stored' ? '未开放分享' : safeExpire}</td>
+            <td style="font-size:0.8rem; color:var(--text-muted);">${f.status === 'stored' ? '未开放' : safeExpire}</td>
             <td>${statusBadge}</td>
             <td style="text-align:right;">
-              <div style="display:inline-flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+              <div style="display:inline-flex; gap:6px; align-items:center; justify-content:flex-end;">
                 ${mediaBtn}
-                ${f.status === 'active' ? `<button class="btn btn-secondary btn-sm" onclick="copyShare('${safeCode}')" title="复制分享链接">📋 复制</button>` : ''}
+                ${shareBtn}
                 <button class="btn btn-secondary btn-sm" onclick="viewLogs(${f.id}, '${safeCode}')" title="查看访问IP与地理位置明细">📊 日志</button>
-                ${f.status !== 'active' ? `<button class="btn btn-primary btn-sm" onclick="openReshare(${f.id}, '${safeCode}')">📤 分享</button>` : ''}
-                <button class="btn btn-danger btn-sm" onclick="deleteFile(${f.id})" title="删除文件">🗑️</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteFile(${f.id})" title="删除记录">🗑️</button>
               </div>
             </td>
           </tr>
