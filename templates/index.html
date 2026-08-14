@@ -175,7 +175,22 @@
     }
 
     function renderFileInfo(info) {
-      document.getElementById('file-name').innerText = info.filename;
+      const filename = info.filename || '';
+      const lastDot = filename.lastIndexOf('.');
+      let stem = filename;
+      let ext = '';
+      if (lastDot > 0) {
+        stem = filename.slice(0, lastDot);
+        ext = filename.slice(lastDot);
+      }
+      const fnEl = document.getElementById('file-name');
+      fnEl.title = filename;
+      fnEl.innerHTML = `
+        <div class="filename-truncate-box" style="max-width: 100%; font-size: 1.1rem;" title="${filename}">
+          <span class="filename-stem">${stem}</span>
+          ${ext ? `<span class="filename-ext" style="font-size: 1.05rem;">${ext}</span>` : ''}
+        </div>
+      `;
       document.getElementById('file-size').innerText = info.file_size_formatted;
       document.getElementById('file-expire').innerText = info.expire_at;
       document.getElementById('file-views').innerText = info.view_count;

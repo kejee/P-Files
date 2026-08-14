@@ -355,7 +355,7 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 280px;
+  max-width: 320px;
 }
 .file-name-text {
   font-weight: 600;
@@ -364,6 +364,54 @@ input:checked + .slider:before {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+}
+
+/* 文件名智能截断 (保留完整后缀) */
+.filename-truncate-box {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 240px;
+  min-width: 0;
+  vertical-align: middle;
+  cursor: default;
+  transition: var(--transition);
+}
+.filename-truncate-box:hover .filename-stem {
+  color: var(--accent-cyan);
+}
+.filename-stem {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
+  font-weight: 600;
+  color: #fff;
+  transition: color 0.15s ease;
+}
+.filename-ext {
+  flex-shrink: 0;
+  color: #a5b4fc;
+  font-family: monospace;
+  font-weight: 700;
+  font-size: 0.88rem;
+  margin-left: 1px;
+}
+
+/* 版本号徽章 */
+.version-badge {
+  font-family: monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.16);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.2;
 }
 
 /* 模态框 Modal */

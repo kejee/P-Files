@@ -57,7 +57,10 @@
     <div class="container nav-content">
       <div class="brand">
         <div class="brand-icon">📦</div>
-        <span>P-Files 管理控制台</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span>P-Files 管理控制台</span>
+          <span class="version-badge">v{{ version }}</span>
+        </div>
       </div>
       <div class="nav-actions">
         <a href="/" target="_blank" class="btn btn-secondary btn-sm">🔗 打开提取首页</a>
@@ -146,11 +149,11 @@
         <div class="strategy-grid">
 
           <!-- 核心策略 0: 私有云盘暂存模式 -->
-          <div class="strategy-card" id="card-sw-private" style="border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.05);">
+          <div class="strategy-card active" id="card-sw-private" style="border-color: rgba(99, 102, 241, 0.5); background: rgba(99, 102, 241, 0.08);">
             <div class="strategy-header">
               <div class="strategy-title" style="color: #a5b4fc;"><span>🔒</span> 存入私有云盘</div>
               <label class="switch">
-                <input type="checkbox" id="sw-private">
+                <input type="checkbox" id="sw-private" checked>
                 <span class="slider"></span>
               </label>
             </div>
@@ -178,11 +181,11 @@
             <div class="strategy-header">
               <div class="strategy-title"><span>⏳</span> 分享有效时长</div>
               <label class="switch">
-                <input type="checkbox" id="sw-expire" checked>
+                <input type="checkbox" id="sw-expire">
                 <span class="slider"></span>
               </label>
             </div>
-            <div id="opt-expire-body" style="margin-top: 8px;">
+            <div id="opt-expire-body" style="display: none; margin-top: 8px;">
               <select id="cfg-expire-select" class="form-control" style="padding: 6px 10px; font-size: 0.85rem;">
                 <option value="0.1666">10 分钟</option>
                 <option value="1">1 小时</option>
@@ -268,7 +271,7 @@
         </div>
 
         <button type="submit" id="btn-upload-submit" class="btn btn-primary" style="padding: 10px 24px; font-size: 0.95rem; margin-top: 14px;">
-          🚀 开始上传并生成分享
+          🔒 存入私有云盘
         </button>
       </form>
     </div>
@@ -347,42 +350,83 @@
     </div>
   </div>
 
-  <!-- 模态框: 重新分享配置 -->
-  <div id="modal-reshare" class="modal-overlay">
-    <div class="modal-box" style="max-width: 480px;">
+  <!-- 模态框: 分享策略配置与修改 -->
+  <div id="modal-share-config" class="modal-overlay">
+    <div class="modal-box" style="max-width: 520px;">
       <div class="modal-header">
-        <h3 style="font-size: 1.05rem;">🔄 重新生成分享链接</h3>
-        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-reshare')">✕</button>
+        <h3 id="modal-share-title" style="font-size: 1.05rem;">⚙️ 配置分享策略</h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-share-config')">✕</button>
       </div>
       <div class="modal-body">
-        <form id="form-reshare">
-          <input type="hidden" id="reshare-file-id">
-          <div class="form-group">
-            <label class="form-label">提取码 (留空自动生成)</label>
-            <input type="text" id="reshare-code" class="form-control">
+        <form id="form-share-config">
+          <input type="hidden" id="share-cfg-file-id">
+          <input type="hidden" id="share-cfg-current-status">
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">提取码 (留空自动生成)</label>
+              <input type="text" id="share-cfg-code" class="form-control" placeholder="留空随机生成" style="font-family: monospace;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">文件备注 (可选)</label>
+              <input type="text" id="share-cfg-remark" class="form-control" placeholder="如：项目文档、安装包">
+            </div>
           </div>
+
           <div class="form-group">
-            <label class="form-label">访问口令 (留空无密)</label>
-            <input type="text" id="reshare-pwd" class="form-control" placeholder="可选口令">
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>🔑 访问口令保护</span>
+              <span id="share-cfg-pwd-status" style="font-size: 0.75rem; color: #a5b4fc;"></span>
+            </label>
+            <input type="text" id="share-cfg-pwd" class="form-control" placeholder="设置新口令 (留空表示不修改)">
+            <label id="share-cfg-clear-pwd-wrap" style="display: none; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-dim); margin-top: 6px; cursor: pointer;">
+              <input type="checkbox" id="share-cfg-clear-pwd"> 清除已有口令（改为公开免密提取）
+            </label>
           </div>
+
           <div class="form-group">
-            <label class="form-label">有效时长</label>
-            <select id="reshare-expire" class="form-control">
+            <label class="form-label">⏳ 分享有效时长</label>
+            <select id="share-cfg-expire-select" class="form-control">
               <option value="0">永久有效</option>
+              <option value="0.1666">10 分钟</option>
               <option value="1">1 小时</option>
-              <option value="24" selected>1 天</option>
+              <option value="24" selected>1 天 (24小时)</option>
+              <option value="72">3 天</option>
               <option value="168">7 天</option>
+              <option value="720">30 天</option>
+              <option value="custom">自定义小时数</option>
             </select>
+            <input type="number" id="share-cfg-expire-custom" class="form-control" placeholder="输入自定义有效小时数" style="display: none; margin-top: 6px;">
           </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">🔥 阅后即焚</label>
+              <select id="share-cfg-burn" class="form-control">
+                <option value="0">关闭</option>
+                <option value="1">🟡 仅失效链接 (保留源文件)</option>
+                <option value="2">🔴 彻底销毁 (物理删除文件)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">🎯 最大下载次数</label>
+              <input type="number" id="share-cfg-maxdl" class="form-control" placeholder="0为不限" min="0" value="0">
+            </div>
+          </div>
+
           <div class="form-group">
-            <label class="form-label">阅后即焚模式</label>
-            <select id="reshare-burn" class="form-control">
-              <option value="0">关闭</option>
-              <option value="1">仅失效分享链接</option>
-              <option value="2">彻底销毁文件</option>
-            </select>
+            <label class="form-label">🛡️ IP 白名单限制 (可选)</label>
+            <textarea id="share-cfg-ips" class="form-control" placeholder="单IP或网段, 逗号分隔&#10;例: 1.2.3.4, 192.168.1.0/24" rows="2" style="font-size: 0.8rem;"></textarea>
           </div>
-          <button type="submit" class="btn btn-primary btn-block" style="margin-top: 16px;">确认重新开启</button>
+
+          <div id="share-cfg-actions" style="display: flex; gap: 10px; margin-top: 18px;">
+            <button type="button" id="btn-share-cfg-close" class="btn btn-secondary" style="flex: 1; border-color: rgba(99,102,241,0.4); color: #a5b4fc;" onclick="closeShareFromModal()">
+              🔒 关闭分享(转云盘)
+            </button>
+            <button type="submit" id="btn-share-cfg-submit" class="btn btn-primary" style="flex: 1.5;">
+              💾 保存修改
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -435,6 +479,9 @@
       window.location.href = '/login';
     }
 
+    // 全局暂存当前文件列表数据，便于弹窗配置回填
+    let currentFileList = [];
+
     function showToast(msg, isError = false) {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
@@ -459,16 +506,19 @@
       const card = document.getElementById(cardId);
       sw.addEventListener('change', () => {
         if (sw.checked) {
-          body.style.display = 'block';
+          if (body) body.style.display = 'block';
           card.classList.add('active');
         } else {
-          body.style.display = 'none';
+          if (body) body.style.display = 'none';
           card.classList.remove('active');
         }
       });
       if (sw.checked) {
-        body.style.display = 'block';
+        if (body) body.style.display = 'block';
         card.classList.add('active');
+      } else {
+        if (body) body.style.display = 'none';
+        card.classList.remove('active');
       }
     }
 
@@ -478,8 +528,29 @@
     bindSwitch('sw-maxdl', 'opt-maxdl-body', 'card-sw-maxdl');
     bindSwitch('sw-ip', 'opt-ip-body', 'card-sw-ip');
 
+    // 私有云盘开关联动
+    const swPrivate = document.getElementById('sw-private');
+    const cardPrivate = document.getElementById('card-sw-private');
+    const uploadBtn = document.getElementById('btn-upload-submit');
+
+    function syncUploadModeUI() {
+      if (swPrivate.checked) {
+        cardPrivate.classList.add('active');
+        uploadBtn.innerText = '🔒 存入私有云盘';
+      } else {
+        cardPrivate.classList.remove('active');
+        uploadBtn.innerText = '🚀 开始上传并生成分享';
+      }
+    }
+    swPrivate.addEventListener('change', syncUploadModeUI);
+    syncUploadModeUI();
+
     document.getElementById('cfg-expire-select').addEventListener('change', (e) => {
       document.getElementById('cfg-expire-custom').style.display = e.target.value === 'custom' ? 'block' : 'none';
+    });
+
+    document.getElementById('share-cfg-expire-select').addEventListener('change', (e) => {
+      document.getElementById('share-cfg-expire-custom').style.display = e.target.value === 'custom' ? 'block' : 'none';
     });
 
     // 拖拽上传支持
@@ -539,6 +610,28 @@
         .replace(/'/g, '&#039;');
     }
 
+    // 智能截断文件名 (中间截断，完整保留后缀)
+    function formatSmartFilenameHtml(filename, maxWidthPx = 220) {
+      if (!filename) return '';
+      const safeFull = escapeHtml(filename);
+      const lastDot = filename.lastIndexOf('.');
+      let stem = filename;
+      let ext = '';
+      if (lastDot > 0) {
+        stem = filename.slice(0, lastDot);
+        ext = filename.slice(lastDot);
+      }
+      const safeStem = escapeHtml(stem);
+      const safeExt = escapeHtml(ext);
+
+      return `
+        <div class="filename-truncate-box" style="max-width:${maxWidthPx}px;" title="${safeFull}">
+          <span class="filename-stem">${safeStem}</span>
+          ${safeExt ? `<span class="filename-ext">${safeExt}</span>` : ''}
+        </div>
+      `;
+    }
+
     async function loadFiles() {
       const search = document.getElementById('search-input').value.trim();
       const statusFilter = document.getElementById('filter-status').value;
@@ -550,12 +643,14 @@
       const data = await res.json();
       const tbody = document.getElementById('files-table-body');
 
-      if (!data.data || data.data.length === 0) {
+      currentFileList = data.data || [];
+
+      if (!currentFileList.length) {
         tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 30px;">暂无文件记录</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = data.data.map(f => {
+      tbody.innerHTML = currentFileList.map(f => {
         const isPhysicallyDestroyed = (f.burn_mode === 2 && (f.status === 'burned' || f.status === 'revoked'));
 
         let statusBadge = `<span class="badge badge-success">● 分享中</span>`;
@@ -608,13 +703,24 @@
           }
         }
 
-        // 分享按钮判断 (物理销毁后不可再分享)
-        let shareBtn = '';
-        if (f.status === 'active') {
-          shareBtn = `<button class="btn btn-secondary btn-sm" onclick="copyShare('${safeCode}')" title="复制分享链接">📋 复制</button>`;
-        } else if (!isPhysicallyDestroyed) {
-          shareBtn = `<button class="btn btn-primary btn-sm" onclick="openReshare(${f.id}, '${safeCode}')" title="重新开启分享">📤 分享</button>`;
+        // 分享按钮与操作: 针对已开启分享支持修改与关闭，私有云盘支持开启分享
+        let shareActionBtns = '';
+        if (isPhysicallyDestroyed) {
+          shareActionBtns = '';
+        } else if (f.status === 'active') {
+          shareActionBtns = `
+            <button class="btn btn-secondary btn-sm" onclick="copyShare('${safeCode}')" title="复制提取链接与提取码">📋 复制</button>
+            <button class="btn btn-primary btn-sm" onclick="openShareConfig(${f.id})" title="修改当前分享策略与配置">⚙️ 修改</button>
+            <button class="btn btn-secondary btn-sm" style="color:#a5b4fc; border-color:rgba(99,102,241,0.4);" onclick="quickCloseShare(${f.id}, '${safeName}')" title="关闭分享并转入私有云盘模式">🔒 关闭</button>
+          `;
+        } else {
+          // 私有云盘 / 已过期 / 仅失效链接
+          shareActionBtns = `
+            <button class="btn btn-primary btn-sm" onclick="openShareConfig(${f.id})" title="配置策略并开启分享">📤 分享</button>
+          `;
         }
+
+        const smartFileNameHtml = formatSmartFilenameHtml(f.original_filename, 220);
 
         return `
           <tr>
@@ -623,7 +729,7 @@
                 <span style="font-family:monospace; background:rgba(99,102,241,0.15); color:#a5b4fc; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.85rem; flex-shrink:0;">
                   ${safeCode}
                 </span>
-                <span class="file-name-text" title="${safeName}">${safeName}</span>
+                ${smartFileNameHtml}
               </div>
               ${f.remark ? `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:3px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safeRemark}">📝 ${safeRemark}</div>` : ''}
             </td>
@@ -638,12 +744,10 @@
             <td style="text-align:right;">
               <div style="display:inline-flex; gap:6px; align-items:center; justify-content:flex-end;">
                 ${mediaBtn}
-                ${shareBtn}
+                ${shareActionBtns}
                 <button class="btn btn-secondary btn-sm" onclick="viewLogs(${f.id}, '${safeCode}')" title="查看访问IP与地理位置明细">📊 日志</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteFile(${f.id})" title="删除记录">🗑️</button>
               </div>
-            </td>
-          </tr>
         `;
       }).join('');
     }
@@ -658,7 +762,7 @@
         document.getElementById('upload-progress-panel').style.display = 'none';
         const btn = document.getElementById('btn-upload-submit');
         btn.disabled = false;
-        btn.innerText = '🚀 开始上传并生成分享';
+        syncUploadModeUI();
         showToast('已取消本次文件上传');
       }
     });
@@ -837,7 +941,7 @@
 
       xhr.onload = () => {
         btn.disabled = false;
-        btn.innerText = '🚀 开始上传并生成分享';
+        syncUploadModeUI();
 
         try {
           const data = JSON.parse(xhr.responseText);
@@ -845,13 +949,35 @@
             progressIcon.innerText = '✅';
             progressEta.innerText = '上传完成';
             progressBar.style.background = 'var(--accent-emerald)';
-            showToast(`✅ 上传成功！提取码: ${data.data.share_code}`);
+            showToast(data.message || `✅ 上传成功！提取码: ${data.data.share_code}`);
 
-            // 重置表单
+            // 重置表单：默认存入私有云盘打开，其他全部关闭
             fileInput.value = '';
             document.getElementById('file-preview-name').innerText = '点击选择文件，或将文件拖放到此处';
-            document.getElementById('file-preview-size').innerText = '支持任意类型文件上传';
+            document.getElementById('file-preview-size').innerText = '支持任意类型文件上传，自动通过 UUID 物理隔离存储';
             document.getElementById('cfg-custom-code').value = '';
+            document.getElementById('cfg-remark').value = '';
+            document.getElementById('cfg-password').value = '';
+            document.getElementById('cfg-expire-select').value = '24';
+            document.getElementById('cfg-expire-custom').value = '';
+            document.getElementById('cfg-expire-custom').style.display = 'none';
+            document.getElementById('cfg-burn-mode').value = '1';
+            document.getElementById('cfg-max-downloads').value = '5';
+            document.getElementById('cfg-allowed-ips').value = '';
+
+            // 重置开关状态
+            document.getElementById('sw-private').checked = true;
+            document.getElementById('sw-pwd').checked = false;
+            document.getElementById('sw-expire').checked = false;
+            document.getElementById('sw-burn').checked = false;
+            document.getElementById('sw-maxdl').checked = false;
+            document.getElementById('sw-ip').checked = false;
+
+            ['sw-pwd', 'sw-expire', 'sw-burn', 'sw-maxdl', 'sw-ip'].forEach(id => {
+              const el = document.getElementById(id);
+              el.dispatchEvent(new Event('change'));
+            });
+            syncUploadModeUI();
             
             setTimeout(() => {
               progressPanel.style.display = 'none';
@@ -871,7 +997,7 @@
 
       xhr.onerror = () => {
         btn.disabled = false;
-        btn.innerText = '🚀 开始上传并生成分享';
+        syncUploadModeUI();
         progressPanel.style.display = 'none';
         showToast('网络连接中断，上传失败', true);
       };
@@ -961,34 +1087,142 @@
       }
     }
 
-    // 重新开启分享
-    function openReshare(id, code) {
-      document.getElementById('reshare-file-id').value = id;
-      document.getElementById('reshare-code').value = code;
-      openModal('modal-reshare');
+    // 打开分享配置/修改弹窗
+    function openShareConfig(fileId) {
+      const f = currentFileList.find(item => item.id === fileId);
+      if (!f) return;
+
+      document.getElementById('share-cfg-file-id').value = f.id;
+      document.getElementById('share-cfg-current-status').value = f.status;
+      document.getElementById('share-cfg-code').value = f.share_code || '';
+      document.getElementById('share-cfg-remark').value = f.remark || '';
+      document.getElementById('share-cfg-pwd').value = '';
+      document.getElementById('share-cfg-clear-pwd').checked = false;
+
+      // 口令状态与提示
+      const pwdStatusEl = document.getElementById('share-cfg-pwd-status');
+      const clearPwdWrap = document.getElementById('share-cfg-clear-pwd-wrap');
+      if (f.has_password) {
+        pwdStatusEl.innerText = '(当前已启用口令)';
+        pwdStatusEl.style.color = '#38bdf8';
+        clearPwdWrap.style.display = 'flex';
+      } else {
+        pwdStatusEl.innerText = '(当前无口令)';
+        pwdStatusEl.style.color = 'var(--text-muted)';
+        clearPwdWrap.style.display = 'none';
+      }
+
+      // 时长选择
+      document.getElementById('share-cfg-expire-select').value = '24';
+      document.getElementById('share-cfg-expire-custom').value = '';
+      document.getElementById('share-cfg-expire-custom').style.display = 'none';
+
+      // 阅后即焚
+      document.getElementById('share-cfg-burn').value = f.burn_mode !== undefined ? f.burn_mode : '0';
+
+      // 最大下载
+      document.getElementById('share-cfg-maxdl').value = f.max_downloads || 0;
+
+      // IP 白名单
+      document.getElementById('share-cfg-ips').value = f.allowed_ips || '';
+
+      // 根据当前状态调整弹窗标题与底部按钮
+      const titleEl = document.getElementById('modal-share-title');
+      const btnClose = document.getElementById('btn-share-cfg-close');
+      const btnSubmit = document.getElementById('btn-share-cfg-submit');
+
+      if (f.status === 'active') {
+        titleEl.innerText = `⚙️ 修改分享策略 - ${f.original_filename}`;
+        btnClose.style.display = 'block';
+        btnSubmit.innerText = '💾 保存修改';
+      } else {
+        titleEl.innerText = `📤 开启文件分享 - ${f.original_filename}`;
+        btnClose.style.display = 'none';
+        btnSubmit.innerText = '🚀 立即开启分享';
+      }
+
+      openModal('modal-share-config');
     }
 
-    document.getElementById('form-reshare').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const id = document.getElementById('reshare-file-id').value;
-      const formData = new FormData();
-      formData.append('custom_code', document.getElementById('reshare-code').value.trim());
-      formData.append('password', document.getElementById('reshare-pwd').value.trim());
-      formData.append('expire_hours', parseFloat(document.getElementById('reshare-expire').value) || 0);
-      formData.append('burn_mode', parseInt(document.getElementById('reshare-burn').value) || 0);
+    // 快捷关闭分享（转私有云盘模式）
+    async function quickCloseShare(fileId, fileName) {
+      if (!confirm(`确定要关闭文件【${fileName}】的公开分享吗？\n\n关闭后文件将转入“私有云盘”模式，公网提取链接将立即关闭失效，可在后台随时再次发起分享。`)) {
+        return;
+      }
+      try {
+        const res = await fetch(`/api/admin/files/${fileId}/close-share`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.status === 200) {
+          showToast('🔒 已关闭分享，文件已存入私有云盘！');
+          loadDashboard();
+        } else {
+          showToast(data.detail || '关闭分享失败', true);
+        }
+      } catch (err) {
+        showToast('网络请求失败', true);
+      }
+    }
 
-      const res = await fetch(`/api/admin/files/${id}/re-share`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-      const data = await res.json();
-      if (res.status === 200) {
-        showToast('重新开启分享成功！');
-        closeModal('modal-reshare');
-        loadDashboard();
-      } else {
-        showToast(data.detail || '操作失败', true);
+    // 从分享设置弹窗内关闭分享
+    async function closeShareFromModal() {
+      const fileId = document.getElementById('share-cfg-file-id').value;
+      if (!fileId) return;
+      try {
+        const res = await fetch(`/api/admin/files/${fileId}/close-share`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.status === 200) {
+          showToast('🔒 已关闭分享，文件已转入私有云盘！');
+          closeModal('modal-share-config');
+          loadDashboard();
+        } else {
+          showToast(data.detail || '关闭分享失败', true);
+        }
+      } catch (err) {
+        showToast('网络请求失败', true);
+      }
+    }
+
+    // 提交分享配置/修改
+    document.getElementById('form-share-config').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fileId = document.getElementById('share-cfg-file-id').value;
+      const formData = new FormData();
+
+      formData.append('custom_code', document.getElementById('share-cfg-code').value.trim());
+      formData.append('remark', document.getElementById('share-cfg-remark').value.trim());
+      formData.append('password', document.getElementById('share-cfg-pwd').value.trim());
+      formData.append('clear_password', document.getElementById('share-cfg-clear-pwd').checked);
+
+      const expSel = document.getElementById('share-cfg-expire-select').value;
+      const expHours = expSel === 'custom' ? parseFloat(document.getElementById('share-cfg-expire-custom').value) || 24 : parseFloat(expSel);
+      formData.append('expire_hours', expHours);
+
+      formData.append('burn_mode', parseInt(document.getElementById('share-cfg-burn').value) || 0);
+      formData.append('max_downloads', parseInt(document.getElementById('share-cfg-maxdl').value) || 0);
+      formData.append('allowed_ips', document.getElementById('share-cfg-ips').value.trim());
+
+      try {
+        const res = await fetch(`/api/admin/files/${fileId}/share-config`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (res.status === 200) {
+          showToast(data.message || '分享策略配置成功！');
+          closeModal('modal-share-config');
+          loadDashboard();
+        } else {
+          showToast(data.detail || '保存失败', true);
+        }
+      } catch (err) {
+        showToast('网络请求失败', true);
       }
     });
 

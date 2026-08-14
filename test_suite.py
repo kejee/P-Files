@@ -14,10 +14,12 @@ async def test_full_file_sharing_lifecycle():
     from sqlalchemy import select
     IPLocator.init("data/ip2region.xdb")
     async with AsyncSessionLocal() as db:
+        from sqlalchemy import delete
+        await db.execute(delete(FileItem).where(FileItem.share_code.in_(["sec888", "doc101", "doc102_new", "doc102_updated", "priv_mov"])))
         res = await db.execute(select(AdminSetting).where(AdminSetting.key == "admin_password"))
         if not res.scalar_one_or_none():
             db.add(AdminSetting(key="admin_password", value=get_password_hash(settings.ADMIN_PASSWORD)))
-            await db.commit()
+        await db.commit()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -150,6 +152,40 @@ async def test_full_file_sharing_lifecycle():
         assert preview_res.status_code in (200, 206), f"预览流返回异常: {preview_res.status_code}"
         assert "video/mp4" in preview_res.headers.get("content-type", "")
         print("✅ 12. 多媒体在线流式秒播 (HTTP Range 切片传输) 验证通过")
+
+        # 13. 测试修改分享配置 (share-config)
+        update_cfg_res = await client.post(f"/api/admin/files/{file_id2}/share-config", data={
+            "custom_code": "doc102_updated",
+            "password": "new_share_pwd_888",
+            "expire_hours": "48",
+            "burn_mode": "0",
+            "max_downloads": "10",
+            "remark": "已更新配置的文档"
+        }, headers=auth_headers)
+        assert update_cfg_res.status_code == 200
+        assert update_cfg_res.json()["data"]["share_code"] == "doc102_updated"
+
+        # 校验修改后状态为 active 且能正常查询
+        query_updated = await client.post("/api/share/query", data={"code": "doc102_updated"})
+        assert query_updated.status_code == 200
+        assert query_updated.json()["data"]["requires_password"] is True
+        assert query_updated.json()["data"]["remark"] == "已更新配置的文档"
+        print("✅ 13. 修改分享配置 (提取码/口令/有效期/最大下载/备注) 验证通过")
+
+        # 14. 测试关闭分享 (close-share 转入私有云盘模式)
+        close_res = await client.post(f"/api/admin/files/{file_id2}/close-share", headers=auth_headers)
+        assert close_res.status_code == 200
+        assert close_res.json()["data"]["status"] == "stored"
+
+        # 验证关闭后公网提取立即失效
+        query_closed = await client.post("/api/share/query", data={"code": "doc102_updated"})
+        assert query_closed.status_code == 410, "关闭分享后公网应无法查询提取"
+
+        # 验证后台列表状态显示为 stored
+        admin_files = await client.get("/api/admin/files", headers=auth_headers)
+        f_closed = next(f for f in admin_files.json()["data"] if f["id"] == file_id2)
+        assert f_closed["status"] == "stored"
+        print("✅ 14. 关闭分享并转入私有云盘模式验证通过")
 
 if __name__ == "__main__":
     asyncio.run(test_full_file_sharing_lifecycle())

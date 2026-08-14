@@ -89,6 +89,7 @@ os.makedirs(templates_dir, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 templates = Jinja2Templates(directory=templates_dir)
+templates.env.globals["version"] = settings.VERSION
 
 # 工具函数：生成高可读性随机提取码 (去除了易混淆的 0, O, 1, I, l)
 def generate_share_code(length: int = 5) -> str:
@@ -523,6 +524,103 @@ async def admin_get_all_logs(
         ]
     }
 
+@app.post("/api/admin/files/{file_id}/close-share")
+async def admin_close_share(
+    file_id: int,
+    admin: str = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    将文件分享关闭，直接转入私有云盘模式
+    """
+    res = await db.execute(select(FileItem).where(FileItem.id == file_id))
+    f = res.scalar_one_or_none()
+    if not f:
+        raise HTTPException(status_code=404, detail="文件记录不存在")
+
+    f.status = "stored"
+    await db.commit()
+    return {
+        "code": 200,
+        "message": "已成功关闭分享，文件已转入私有云盘模式",
+        "data": {
+            "id": f.id,
+            "share_code": f.share_code,
+            "status": f.status
+        }
+    }
+
+@app.post("/api/admin/files/{file_id}/share-config")
+async def admin_update_share_config(
+    file_id: int,
+    custom_code: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    clear_password: bool = Form(False),
+    expire_hours: Optional[float] = Form(0), # 0 为永久有效
+    burn_mode: int = Form(0), # 0=关闭, 1=仅失效分享, 2=彻底物理删除
+    max_downloads: int = Form(0), # 0=不限
+    allowed_ips: Optional[str] = Form(None),
+    remark: Optional[str] = Form(None),
+    admin: str = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    修改/配置并开启文件分享策略（支持修改提取码、口令、有效时长、即焚、下载限制、IP白名单、备注等）
+    """
+    res = await db.execute(select(FileItem).where(FileItem.id == file_id))
+    f = res.scalar_one_or_none()
+    if not f:
+        raise HTTPException(status_code=404, detail="文件记录不存在")
+
+    target_path = os.path.join(settings.UPLOAD_DIR, f.stored_filename)
+    if not os.path.exists(target_path):
+        raise HTTPException(status_code=400, detail="该文件物理已被彻底销毁，无法配置分享")
+
+    # 提取码处理
+    if custom_code and custom_code.strip():
+        new_code = custom_code.strip()
+        if new_code != f.share_code:
+            existing = await db.execute(select(FileItem).where(FileItem.share_code == new_code))
+            if existing.scalar_one_or_none():
+                raise HTTPException(status_code=400, detail=f"提取码 [{new_code}] 已被占用，请换一个")
+            f.share_code = new_code
+    elif not f.share_code:
+        f.share_code = generate_share_code(6)
+
+    # 备注更新
+    if remark is not None:
+        f.remark = remark.strip() if remark.strip() else None
+
+    # 口令处理
+    if clear_password:
+        f.has_password = False
+        f.password_hash = None
+    elif password and password.strip():
+        f.has_password = True
+        f.password_hash = get_password_hash(password.strip())
+
+    # 有效期处理
+    if expire_hours and expire_hours > 0:
+        f.expire_at = datetime.datetime.utcnow() + datetime.timedelta(hours=expire_hours)
+    else:
+        f.expire_at = None
+
+    f.burn_mode = burn_mode
+    f.max_downloads = max_downloads
+    f.allowed_ips = allowed_ips.strip() if allowed_ips and allowed_ips.strip() else None
+    f.status = "active"
+
+    await db.commit()
+    return {
+        "code": 200,
+        "message": "分享策略已更新并成功开启分享",
+        "data": {
+            "id": f.id,
+            "share_code": f.share_code,
+            "status": f.status
+        }
+    }
+
 @app.post("/api/admin/files/{file_id}/re-share")
 async def admin_reshare_file(
     file_id: int,
@@ -536,40 +634,21 @@ async def admin_reshare_file(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    针对已失效或未物理删除的文件，重新激活/生成新的分享策略
-    （无需重新上传源文件）
+    向下兼容的重新分享接口
     """
-    res = await db.execute(select(FileItem).where(FileItem.id == file_id))
-    f = res.scalar_one_or_none()
-    if not f:
-        raise HTTPException(status_code=404, detail="文件记录不存在")
-
-    target_path = os.path.join(settings.UPLOAD_DIR, f.stored_filename)
-    if not os.path.exists(target_path):
-        raise HTTPException(status_code=400, detail="该文件物理已被彻底销毁，无法重新分享")
-
-    # 更新分享策略
-    if custom_code and custom_code.strip():
-        f.share_code = custom_code.strip()
-    else:
-        f.share_code = generate_share_code(6)
-
-    has_pwd = bool(password and password.strip())
-    f.has_password = has_pwd
-    f.password_hash = get_password_hash(password.strip()) if has_pwd else None
-
-    if expire_hours and expire_hours > 0:
-        f.expire_at = datetime.datetime.utcnow() + datetime.timedelta(hours=expire_hours)
-    else:
-        f.expire_at = None
-
-    f.burn_mode = burn_mode
-    f.max_downloads = max_downloads
-    f.allowed_ips = allowed_ips.strip() if allowed_ips else None
-    f.status = "active"
-
-    await db.commit()
-    return {"code": 200, "message": "重新开启分享成功", "share_code": f.share_code}
+    return await admin_update_share_config(
+        file_id=file_id,
+        custom_code=custom_code,
+        password=password,
+        clear_password=False,
+        expire_hours=expire_hours,
+        burn_mode=burn_mode,
+        max_downloads=max_downloads,
+        allowed_ips=allowed_ips,
+        remark=None,
+        admin=admin,
+        db=db
+    )
 
 @app.delete("/api/admin/files/{file_id}")
 async def admin_delete_file(
