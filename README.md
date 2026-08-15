@@ -12,6 +12,31 @@
 
 ---
 
+## 📸 系统界面预览 (Screenshots)
+
+### 💻 桌面端管理控制台 (Admin Dashboard)
+> 暗黑玻璃拟态设计，集成了全盘数据看板、多策略组合上传面板与文件管理列表：
+
+<p align="center">
+  <img src="docs/images/01_admin_dashboard.png" alt="管理控制台全景图" width="95%" style="border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);">
+</p>
+
+### ⚙️ 自由组合的策略配置 & 📊 离线物理地区审计
+<p align="center">
+  <img src="docs/images/02_share_strategy_modal.png" alt="分享策略配置弹窗" width="48%" style="border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); margin-right: 2%;">
+  <img src="docs/images/03_stat_detail_modal.png" alt="数据审计与明细弹窗" width="48%" style="border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+</p>
+
+### 📱 移动端沉浸式体验 (Mobile Adaptive)
+> 单行 52px 精致 AppBar，智能文本伸缩与纯图标胶囊，为小屏手机释放 55%+ 首屏视野：
+
+<p align="center">
+  <img src="docs/images/06_mobile_admin.png" alt="移动端管理控制台" width="38%" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); margin-right: 3%;">
+  <img src="docs/images/07_mobile_visitor.png" alt="移动端访客提取页" width="38%" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+</p>
+
+---
+
 ## ✨ 核心特性
 
 - 🚀 **Docker / Linux 一键极速部署**：提供全自动安装脚本与 Docker Compose，数据和配置自动持久化至本地 `./data`。
