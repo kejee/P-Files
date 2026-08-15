@@ -132,35 +132,24 @@ data/
 
 ---
 
-## 🛡️ 生产环境 Nginx 反向代理与 HTTPS 配置
+## 🛡️ 生产环境反向代理与 HTTPS 部署
 
-如果你需要绑定域名并通过 HTTPS 访问，可在服务器 Nginx 配置中加入：
+如果你需要绑定域名并通过 HTTPS 访问，建议使用反向代理直连 VPS，以**解除 Cloudflare 等免费 CDN 的 100MB 上传限制**。
 
-```nginx
-server {
-    listen 80;
-    server_name share.yourdomain.com;
-    return 301 https://$host$request_uri;
-}
+### 🚀 极速一键部署（推荐）
+推荐使用开源自动化工具 [**kejee/nginx-ssl**](https://github.com/kejee/nginx-ssl)，一行命令自动配置 Nginx 独立站点、签发免费 SSL 证书并开启大文件直传：
 
-server {
-    listen 443 ssl http2;
-    server_name share.yourdomain.com;
+```bash
+# 1. 安装工具
+curl -fsSL https://raw.githubusercontent.com/kejee/nginx-ssl/main/install.sh | bash
 
-    ssl_certificate /etc/letsencrypt/live/share.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/share.yourdomain.com/privkey.pem;
-
-    client_max_body_size 2048M; # 允许上传最大 2GB 大文件
-
-    location / {
-        proxy_pass http://127.0.0.1:52080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
+# 2. 一键添加站点（自动申请 SSL、无限制大文件）
+add-proxy share.yourdomain.com 52080
 ```
+
+> 📖 **更多部署方案与安全加固**：
+> 包含**自动更新定时脚本（开/闭 IP:端口模式）**、**Caddy 方案**以及**禁止 IP 直接访问安全加固**，请参阅详细文档：👉 [**生产环境部署与运维指南 (DEPLOYMENT.md)**](DEPLOYMENT.md)
+
 
 ---
 
