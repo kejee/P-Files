@@ -522,7 +522,7 @@ async def admin_upload_file(
         burn_trigger=burn_trigger if burn_trigger in ["download", "view", "any"] else "download",
         allow_preview=final_allow_preview,
         allow_download=final_allow_download,
-        max_downloads=max_downloads,
+        max_downloads=1 if (burn_mode > 0 and burn_trigger in ["download", "any"]) else max_downloads,
         allowed_ips=allowed_ips.strip() if allowed_ips else None,
         remark=remark.strip() if remark else None,
         status=init_status
@@ -818,7 +818,7 @@ async def admin_update_share_config(
     f.burn_trigger = burn_trigger if burn_trigger in ["download", "view", "any"] else "download"
     f.allow_preview = allow_preview
     f.allow_download = allow_download
-    f.max_downloads = max_downloads
+    f.max_downloads = 1 if (burn_mode > 0 and f.burn_trigger in ["download", "any"]) else max_downloads
     f.allowed_ips = allowed_ips.strip() if allowed_ips and allowed_ips.strip() else None
     f.status = "active"
 
