@@ -470,6 +470,24 @@
     </div>
   </div>
 
+  <!-- 模态框: 删除文件确认 (完美兼容手机与桌面端) -->
+  <div id="modal-delete-confirm" class="modal-overlay">
+    <div class="modal-box" style="max-width: 420px; padding: 24px 20px; text-align: center;">
+      <div style="font-size: 2.6rem; line-height: 1; margin-bottom: 12px;">🗑️</div>
+      <h3 style="font-size: 1.15rem; color: #fff; margin-bottom: 12px; font-weight: 700;">确认彻底删除此文件？</h3>
+      <div id="delete-confirm-file-info" style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1; word-break: break-all; text-align: left;">
+        <!-- 动态填充文件名和提取码 -->
+      </div>
+      <p style="color: #fda4af; font-size: 0.8rem; margin-bottom: 22px; line-height: 1.5; background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.25); border-radius: var(--radius-sm); padding: 8px 10px;">
+        ⚠️ <strong>警告</strong>：底层物理存储文件将被立即彻底销毁，所有已分享链接和提取码将永久失效，此操作不可撤销！
+      </p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button type="button" class="btn btn-secondary" style="flex: 1; padding: 10px 14px; font-size: 0.9rem;" onclick="closeModal('modal-delete-confirm')">取消</button>
+        <button type="button" id="btn-confirm-delete-action" class="btn btn-danger" style="flex: 1; padding: 10px 14px; font-size: 0.9rem; font-weight: 600;">确定删除</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container"></div>
 
   <script>
@@ -754,7 +772,7 @@
                 ${mediaBtn}
                 ${shareActionBtns}
                 <button class="btn btn-secondary btn-sm" onclick="viewLogs(${f.id}, '${safeCode}')" title="查看访问IP与地理位置明细">📊 日志</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteFile(${f.id})" title="删除记录">🗑️</button>
+                <button class="btn btn-danger btn-sm" onclick="confirmDeleteFile(${f.id}, '${safeName.replace(/'/g, "\\'")}', '${safeCode}')" title="删除记录">🗑️</button>
               </div>
         `;
       }).join('');
@@ -1234,19 +1252,63 @@
       }
     });
 
-    // 手动删除
-    async function deleteFile(id) {
-      if (!confirm('确定要删除此文件吗？底层物理文件也将一并被彻底销毁。')) return;
-      const res = await fetch(`/api/admin/files/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.status === 200) {
-        showToast('文件已彻底删除');
-        loadDashboard();
+    // 待删除文件暂存 ID
+    let pendingDeleteId = null;
+
+    // 唤起删除确认模态框 (兼容手机/桌面端触屏交互)
+    function confirmDeleteFile(id, filename, code) {
+      pendingDeleteId = id;
+      const infoEl = document.getElementById('delete-confirm-file-info');
+      if (infoEl) {
+        infoEl.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 5px;">
+            <span style="font-family: monospace; background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 0.8rem;">${code || '私有云盘'}</span>
+            <span style="color: var(--text-dim); font-size: 0.78rem;">提取码</span>
+          </div>
+          <div style="font-weight: 600; color: #fff; line-height: 1.4; word-break: break-all;">${filename}</div>
+        `;
+      }
+      openModal('modal-delete-confirm');
+    }
+
+    // 确认执行彻底删除操作
+    document.getElementById('btn-confirm-delete-action').addEventListener('click', async () => {
+      if (!pendingDeleteId) return;
+      const btn = document.getElementById('btn-confirm-delete-action');
+      const origText = btn.innerText;
+      btn.innerText = '正在销毁...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/admin/files/${pendingDeleteId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        closeModal('modal-delete-confirm');
+        if (res.status === 200) {
+          showToast('文件与物理数据已彻底销毁');
+          loadDashboard();
+        } else {
+          showToast(data.detail || '删除失败', true);
+        }
+      } catch (err) {
+        closeModal('modal-delete-confirm');
+        showToast('网络请求失败', true);
+      } finally {
+        btn.innerText = origText;
+        btn.disabled = false;
+        pendingDeleteId = null;
+      }
+    });
+
+    // 兼容原 deleteFile 函数调用
+    function deleteFile(id) {
+      const file = (typeof currentFileList !== 'undefined') ? currentFileList.find(item => item.id === id) : null;
+      if (file) {
+        confirmDeleteFile(id, file.original_filename, file.share_code);
       } else {
-        showToast(data.detail || '删除失败', true);
+        confirmDeleteFile(id, '选定文件', '');
       }
     }
 
