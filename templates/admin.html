@@ -196,7 +196,35 @@
               </label>
             </div>
             <div id="opt-private-body" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 4px;">
-              开启后仅存入后台个人云盘，暂不生成公开分享，可随时一键发起分享。
+              开启后仅存入后台个人云盘，不向外开放任何权限，可随时一键发起分享。
+            </div>
+          </div>
+
+          <!-- 权限通道 1: 允许在线预览 (默认随私有模式关闭) -->
+          <div class="strategy-card" id="card-sw-preview">
+            <div class="strategy-header">
+              <div class="strategy-title"><span>👁️</span> 允许在线预览</div>
+              <label class="switch">
+                <input type="checkbox" id="sw-preview">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="opt-preview-body" style="display: none; font-size: 0.76rem; color: #38bdf8; margin-top: 4px;">
+              开启后访客可在线流畅预览图片、播放音视频、阅读 PDF 或查阅文本。
+            </div>
+          </div>
+
+          <!-- 权限通道 2: 允许下载源文件 (默认随私有模式关闭) -->
+          <div class="strategy-card" id="card-sw-download">
+            <div class="strategy-header">
+              <div class="strategy-title"><span>⬇️</span> 允许下载源文件</div>
+              <label class="switch">
+                <input type="checkbox" id="sw-download">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div id="opt-download-body" style="display: none; font-size: 0.76rem; color: #a7f3d0; margin-top: 4px;">
+              开启后访客可将完整源文件下载保存至本地设备。若关闭则实现【仅在线阅览防泄密】。
             </div>
           </div>
           
@@ -237,7 +265,7 @@
             </div>
           </div>
 
-          <!-- 策略 3: 阅后即焚模式 -->
+          <!-- 策略 3: 阅后即焚模式与触发条件 -->
           <div class="strategy-card" id="card-sw-burn">
             <div class="strategy-header">
               <div class="strategy-title"><span>🔥</span> 阅后即焚</div>
@@ -247,10 +275,21 @@
               </label>
             </div>
             <div id="opt-burn-body" style="display: none; margin-top: 8px;">
-              <select id="cfg-burn-mode" class="form-control" style="padding: 6px 10px; font-size: 0.82rem;">
-                <option value="1">🟡 仅失效分享 (保留源文件)</option>
-                <option value="2">🔴 彻底销毁 (物理删除文件)</option>
-              </select>
+              <div style="margin-bottom: 6px;">
+                <label style="font-size: 0.75rem; color: var(--text-dim);">即焚触发时机：</label>
+                <select id="cfg-burn-trigger" class="form-control" style="padding: 5px 8px; font-size: 0.8rem; margin-top: 2px;">
+                  <option value="download" selected>⬇️ 首次下载源文件后即焚</option>
+                  <option value="view">👁️ 首次在线预览查阅后即焚</option>
+                  <option value="any">⚡ 发生预览或下载任意交互后即焚</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 0.75rem; color: var(--text-dim);">销毁方式：</label>
+                <select id="cfg-burn-mode" class="form-control" style="padding: 5px 8px; font-size: 0.8rem; margin-top: 2px;">
+                  <option value="1">🟡 仅失效分享 (保留源文件)</option>
+                  <option value="2">🔴 彻底物理销毁 (磁盘粉碎)</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -472,19 +511,52 @@
             <input type="number" id="share-cfg-expire-custom" class="form-control" placeholder="输入自定义有效小时数" style="display: none; margin-top: 6px;">
           </div>
 
+          <!-- 权限通道开关 (独立 Switch) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <div style="font-size: 0.85rem; font-weight: 600; color: #38bdf8;">👁️ 允许在线预览</div>
+                <div style="font-size: 0.72rem; color: var(--text-dim);">支持音视频/图片/文档</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="share-cfg-preview">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <div style="font-size: 0.85rem; font-weight: 600; color: #a7f3d0;">⬇️ 允许下载源文件</div>
+                <div style="font-size: 0.72rem; color: var(--text-dim);">关闭则仅限在线阅览</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="share-cfg-download">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
             <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label">🔥 阅后即焚</label>
-              <select id="share-cfg-burn" class="form-control">
-                <option value="0">关闭</option>
-                <option value="1">🟡 仅失效链接 (保留源文件)</option>
-                <option value="2">🔴 彻底销毁 (物理删除文件)</option>
+              <label class="form-label">🔥 阅后即焚时机</label>
+              <select id="share-cfg-burn-trigger" class="form-control">
+                <option value="download">⬇️ 首次下载源文件后</option>
+                <option value="view">👁️ 首次在线预览查阅后</option>
+                <option value="any">⚡ 预览或下载任意交互后</option>
               </select>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
-              <label class="form-label">🎯 最大下载次数</label>
-              <input type="number" id="share-cfg-maxdl" class="form-control" placeholder="0为不限" min="0" value="0">
+              <label class="form-label">🔥 销毁方式</label>
+              <select id="share-cfg-burn" class="form-control">
+                <option value="0">关闭即焚</option>
+                <option value="1">🟡 仅失效分享 (保留源文件)</option>
+                <option value="2">🔴 彻底销毁 (物理删除文件)</option>
+              </select>
             </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">🎯 最大下载次数 (0为不限)</label>
+            <input type="number" id="share-cfg-maxdl" class="form-control" placeholder="0为不限" min="0" value="0">
           </div>
 
           <div class="form-group">
@@ -660,27 +732,80 @@
       }
     }
 
+    bindSwitch('sw-preview', 'opt-preview-body', 'card-sw-preview');
+    bindSwitch('sw-download', 'opt-download-body', 'card-sw-download');
     bindSwitch('sw-pwd', 'opt-pwd-body', 'card-sw-pwd');
     bindSwitch('sw-expire', 'opt-expire-body', 'card-sw-expire');
     bindSwitch('sw-burn', 'opt-burn-body', 'card-sw-burn');
     bindSwitch('sw-maxdl', 'opt-maxdl-body', 'card-sw-maxdl');
     bindSwitch('sw-ip', 'opt-ip-body', 'card-sw-ip');
 
-    // 私有云盘开关联动
+    // 私有云盘开关联动与其它策略置灰控制
     const swPrivate = document.getElementById('sw-private');
     const cardPrivate = document.getElementById('card-sw-private');
     const uploadBtn = document.getElementById('btn-upload-submit');
+    const swPreview = document.getElementById('sw-preview');
+    const swDownload = document.getElementById('sw-download');
+
+    const otherStrategyIds = [
+      { sw: 'sw-preview', card: 'card-sw-preview', body: 'opt-preview-body' },
+      { sw: 'sw-download', card: 'card-sw-download', body: 'opt-download-body' },
+      { sw: 'sw-pwd', card: 'card-sw-pwd', body: 'opt-pwd-body' },
+      { sw: 'sw-expire', card: 'card-sw-expire', body: 'opt-expire-body' },
+      { sw: 'sw-burn', card: 'card-sw-burn', body: 'opt-burn-body' },
+      { sw: 'sw-maxdl', card: 'card-sw-maxdl', body: 'opt-maxdl-body' },
+      { sw: 'sw-ip', card: 'card-sw-ip', body: 'opt-ip-body' }
+    ];
 
     function syncUploadModeUI() {
-      if (swPrivate.checked) {
+      const isPrivate = swPrivate.checked;
+      if (isPrivate) {
         cardPrivate.classList.add('active');
         uploadBtn.innerText = '🔒 存入私有云盘';
       } else {
         cardPrivate.classList.remove('active');
         uploadBtn.innerText = '🚀 开始上传并生成分享';
       }
+
+      // 联动置灰/激活其它 7 个策略卡片
+      otherStrategyIds.forEach(item => {
+        const swEl = document.getElementById(item.sw);
+        const cardEl = document.getElementById(item.card);
+        const bodyEl = document.getElementById(item.body);
+        if (!swEl || !cardEl) return;
+
+        if (isPrivate) {
+          cardEl.classList.add('disabled');
+          cardEl.classList.remove('active');
+          swEl.disabled = true;
+          if (bodyEl) bodyEl.style.display = 'none';
+        } else {
+          cardEl.classList.remove('disabled');
+          swEl.disabled = false;
+          if (swEl.checked) {
+            cardEl.classList.add('active');
+            if (bodyEl) bodyEl.style.display = 'block';
+          }
+        }
+      });
     }
-    swPrivate.addEventListener('change', syncUploadModeUI);
+
+    swPrivate.addEventListener('change', () => {
+      const isPrivate = swPrivate.checked;
+      if (!isPrivate) {
+        // 用户主动关闭私有云盘，决定对外分享：如果两个权限都没开，自动勾选下载源文件
+        if (!swPreview.checked && !swDownload.checked) {
+          swDownload.checked = true;
+        }
+      } else {
+        // 用户切回私有云盘模式：重置关闭对外所有权限
+        otherStrategyIds.forEach(item => {
+          const swEl = document.getElementById(item.sw);
+          if (swEl) swEl.checked = false;
+        });
+      }
+      syncUploadModeUI();
+    });
     syncUploadModeUI();
 
     document.getElementById('cfg-expire-select').addEventListener('change', (e) => {
@@ -812,10 +937,29 @@
         if (f.status === 'revoked' || f.status === 'deleted') statusBadge = `<span class="badge badge-gray">🗑️ 已删除</span>`;
 
         let rules = [];
-        if (f.status === 'stored') rules.push(`<span class="badge-rule" style="color:#a5b4fc;">🔒 私有</span>`);
+        if (f.status === 'stored') {
+          rules.push(`<span class="badge-rule" style="color:#a5b4fc;">🔒 私有</span>`);
+        } else {
+          // 权限通道标识
+          if (f.allow_preview && !f.allow_download) {
+            rules.push(`<span class="badge-rule" style="color:#38bdf8;">👁️ 仅预览</span>`);
+          } else if (!f.allow_preview && f.allow_download) {
+            rules.push(`<span class="badge-rule" style="color:#a7f3d0;">⬇️ 仅下载</span>`);
+          } else if (f.allow_preview && f.allow_download) {
+            rules.push(`<span class="badge-rule" style="color:#c084fc;">🌟 双通道</span>`);
+          }
+
+          // 阅后即焚标识
+          if (f.burn_mode === 1) {
+            const trgText = f.burn_trigger === 'view' ? '阅后毁链' : (f.burn_trigger === 'any' ? '交互毁链' : '下载毁链');
+            rules.push(`<span class="badge-rule" style="color:#fbbf24;">🔥 ${trgText}</span>`);
+          } else if (f.burn_mode === 2) {
+            const trgText = f.burn_trigger === 'view' ? '阅后销毁' : (f.burn_trigger === 'any' ? '交互销毁' : '下载销毁');
+            rules.push(`<span class="badge-rule" style="color:#fda4af;">💥 ${trgText}</span>`);
+          }
+        }
+
         if (f.has_password) rules.push(`<span class="badge-rule">🔑 口令</span>`);
-        if (f.burn_mode === 1) rules.push(`<span class="badge-rule" style="color:#fbbf24;">🔥 仅毁链</span>`);
-        if (f.burn_mode === 2) rules.push(`<span class="badge-rule" style="color:#fda4af;">💥 物理销毁</span>`);
         if (f.max_downloads > 0) rules.push(`<span class="badge-rule">🎯 限${f.max_downloads}次</span>`);
         if (f.allowed_ips) rules.push(`<span class="badge-rule" style="color:#38bdf8;">🛡️ 白名单</span>`);
         if (rules.length === 0 && f.status !== 'stored') rules.push(`<span style="color:var(--text-dim); font-size:0.75rem;">无特殊限制</span>`);
@@ -964,11 +1108,23 @@
       const selectedFile = fileInput.files[0];
       const btn = document.getElementById('btn-upload-submit');
 
+      const isPrivate = document.getElementById('sw-private').checked;
+      const allowPreview = document.getElementById('sw-preview').checked;
+      const allowDownload = document.getElementById('sw-download').checked;
+
+      // 若非私有云盘模式，校验必须至少开启一项
+      if (!isPrivate && !allowPreview && !allowDownload) {
+        showToast('公开分享必须至少开启【允许在线预览】或【允许下载源文件】其中一项', true);
+        return;
+      }
+
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('custom_code', document.getElementById('cfg-custom-code').value.trim());
       formData.append('remark', document.getElementById('cfg-remark').value.trim());
-      formData.append('is_private', document.getElementById('sw-private').checked);
+      formData.append('is_private', isPrivate);
+      formData.append('allow_preview', allowPreview);
+      formData.append('allow_download', allowDownload);
 
       // 策略 1: 口令
       if (document.getElementById('sw-pwd').checked) {
@@ -985,8 +1141,10 @@
       // 策略 3: 阅后即焚
       if (document.getElementById('sw-burn').checked) {
         formData.append('burn_mode', document.getElementById('cfg-burn-mode').value);
+        formData.append('burn_trigger', document.getElementById('cfg-burn-trigger').value);
       } else {
         formData.append('burn_mode', 0);
+        formData.append('burn_trigger', 'download');
       }
       // 策略 4: 最大下载
       if (document.getElementById('sw-maxdl').checked) {
@@ -1111,15 +1269,17 @@
             document.getElementById('cfg-max-downloads').value = '5';
             document.getElementById('cfg-allowed-ips').value = '';
 
-            // 重置开关状态
+            // 重置开关状态：默认私有云盘勾选，对外预览与下载等全部关闭
             document.getElementById('sw-private').checked = true;
+            document.getElementById('sw-preview').checked = false;
+            document.getElementById('sw-download').checked = false;
             document.getElementById('sw-pwd').checked = false;
             document.getElementById('sw-expire').checked = false;
             document.getElementById('sw-burn').checked = false;
             document.getElementById('sw-maxdl').checked = false;
             document.getElementById('sw-ip').checked = false;
 
-            ['sw-pwd', 'sw-expire', 'sw-burn', 'sw-maxdl', 'sw-ip'].forEach(id => {
+            ['sw-preview', 'sw-download', 'sw-pwd', 'sw-expire', 'sw-burn', 'sw-maxdl', 'sw-ip'].forEach(id => {
               const el = document.getElementById(id);
               el.dispatchEvent(new Event('change'));
             });
@@ -1200,45 +1360,39 @@
       const tbodyEl = document.getElementById('modal-stat-detail-tbody');
       const countEl = document.getElementById('modal-stat-detail-count');
 
-      // 初始化加载状态
-      tbodyEl.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--text-dim);">正在加载明细数据...</td></tr>`;
+      tbodyEl.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">正在加载数据...</td></tr>';
+      countEl.innerText = '';
       openModal('modal-stat-detail');
 
       // 1. 全部文件明细 (total_files)
       if (type === 'total_files') {
-        titleEl.innerHTML = `📁 全部文件明细清单`;
+        titleEl.innerHTML = '📁 全部存储与分享文件明细';
         const total = currentFileList.length;
-        const stored = currentFileList.filter(f => f.status === 'stored').length;
-        const active = currentFileList.filter(f => f.status === 'active').length;
-        const expired = currentFileList.filter(f => f.status === 'expired' || f.status === 'burned' || f.status === 'revoked').length;
-
         summaryEl.innerHTML = `
-          <span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc;">总计: ${total} 个文件</span>
-          <span class="badge badge-success">⚡ 活跃分享: ${active} 个</span>
-          <span class="badge" style="background:rgba(99,102,241,0.15); color:#c7d2fe;">🔒 私有云盘: ${stored} 个</span>
-          <span class="badge badge-warning">⏳ 过期/销毁: ${expired} 个</span>
+          <span class="badge badge-info">总计: ${total} 个文件</span>
+          <span style="color:var(--text-dim); font-size:0.8rem;">包含私有云盘存储与所有历史公开分享文件</span>
         `;
         theadEl.innerHTML = `
           <tr>
-            <th>提取码 / 状态</th>
+            <th>提取码 / 模式</th>
             <th>文件名</th>
             <th>文件大小</th>
             <th>查看 / 下载</th>
             <th>创建 / 到期时间</th>
-            <th style="text-align: right;">快捷操作</th>
+            <th style="text-align: right;">操作</th>
           </tr>
         `;
         if (total === 0) {
-          tbodyEl.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">暂无任何文件记录</td></tr>`;
-          countEl.innerText = `共 0 条文件`;
+          tbodyEl.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">暂无任何文件记录</td></tr>';
+          countEl.innerText = '共 0 条文件';
           return;
         }
         tbodyEl.innerHTML = currentFileList.map(f => {
-          let statusBadge = `<span class="badge badge-success">分享中</span>`;
-          if (f.status === 'stored') statusBadge = `<span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc;">私有</span>`;
-          if (f.status === 'expired') statusBadge = `<span class="badge badge-warning">已过期</span>`;
-          if (f.status === 'burned') statusBadge = `<span class="badge badge-danger">已销毁</span>`;
-          if (f.status === 'revoked') statusBadge = `<span class="badge badge-gray">已删除</span>`;
+          let statusBadge = '<span class="badge badge-success">分享中</span>';
+          if (f.status === 'stored') statusBadge = '<span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc;">私有</span>';
+          if (f.status === 'expired') statusBadge = '<span class="badge badge-warning">已过期</span>';
+          if (f.status === 'burned') statusBadge = '<span class="badge badge-danger">已销毁</span>';
+          if (f.status === 'revoked') statusBadge = '<span class="badge badge-gray">已删除</span>';
 
           const smartName = formatSmartFilenameHtml(f.original_filename, 20);
           return `
@@ -1246,7 +1400,7 @@
               <td>
                 <div style="display:flex; align-items:center; gap:6px;">
                   <span style="font-family:monospace; background:rgba(99,102,241,0.15); color:#a5b4fc; padding:1px 5px; border-radius:4px; font-weight:700; font-size:0.8rem;">
-                    ${f.share_code || '无提取码'}
+                    ${escapeHtml(f.share_code) || '无提取码'}
                   </span>
                   ${statusBadge}
                 </div>
@@ -1267,7 +1421,7 @@
 
       // 2. 活跃分享中文件 (active_files)
       else if (type === 'active_files') {
-        titleEl.innerHTML = `⚡ 活跃分享中文件明细`;
+        titleEl.innerHTML = '⚡ 活跃分享中文件明细';
         const activeList = currentFileList.filter(f => f.status === 'active');
         summaryEl.innerHTML = `
           <span class="badge badge-success">● 正在公开分享中: ${activeList.length} 个</span>
@@ -1285,18 +1439,21 @@
           </tr>
         `;
         if (activeList.length === 0) {
-          tbodyEl.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 30px;">当前暂无活跃分享文件</td></tr>`;
-          countEl.innerText = `共 0 条活跃文件`;
+          tbodyEl.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 30px;">当前暂无活跃分享文件</td></tr>';
+          countEl.innerText = '共 0 条活跃文件';
           return;
         }
         tbodyEl.innerHTML = activeList.map(f => {
           let rules = [];
-          if (f.has_password) rules.push(`<span class="badge-rule">🔑 口令</span>`);
-          if (f.burn_mode === 1) rules.push(`<span class="badge-rule" style="color:#fbbf24;">🔥 毁链</span>`);
-          if (f.burn_mode === 2) rules.push(`<span class="badge-rule" style="color:#fda4af;">💥 销毁</span>`);
+          if (f.allow_preview && !f.allow_download) rules.push('<span class="badge-rule" style="color:#38bdf8;">👁️ 仅预览</span>');
+          if (!f.allow_preview && f.allow_download) rules.push('<span class="badge-rule" style="color:#a7f3d0;">⬇️ 仅下载</span>');
+          if (f.allow_preview && f.allow_download) rules.push('<span class="badge-rule" style="color:#c084fc;">🌟 双通道</span>');
+          if (f.has_password) rules.push('<span class="badge-rule">🔑 口令</span>');
+          if (f.burn_mode === 1) rules.push('<span class="badge-rule" style="color:#fbbf24;">🔥 毁链</span>');
+          if (f.burn_mode === 2) rules.push('<span class="badge-rule" style="color:#fda4af;">💥 销毁</span>');
           if (f.max_downloads > 0) rules.push(`<span class="badge-rule">🎯 限${f.max_downloads}次</span>`);
-          if (f.allowed_ips) rules.push(`<span class="badge-rule" style="color:#38bdf8;">🛡️ 白名单</span>`);
-          if (rules.length === 0) rules.push(`<span style="color:var(--text-dim); font-size:0.75rem;">无限制</span>`);
+          if (f.allowed_ips) rules.push('<span class="badge-rule" style="color:#38bdf8;">🛡️ 白名单</span>');
+          if (rules.length === 0) rules.push('<span style="color:var(--text-dim); font-size:0.75rem;">无限制</span>');
 
           const smartName = formatSmartFilenameHtml(f.original_filename, 20);
           return `
@@ -1325,13 +1482,13 @@
       else {
         let actionParam = '';
         if (type === 'views') {
-          titleEl.innerHTML = `👀 访客查看提取码日志`;
+          titleEl.innerHTML = '👀 访客查看提取码日志';
           actionParam = 'view';
         } else if (type === 'downloads') {
-          titleEl.innerHTML = `⬇️ 访客真实下载日志`;
+          titleEl.innerHTML = '⬇️ 访客真实下载日志';
           actionParam = 'download';
         } else if (type === 'blocked') {
-          titleEl.innerHTML = `🛡️ 非法 IP 与异常拦截明细`;
+          titleEl.innerHTML = '🛡️ 非法 IP 与异常拦截明细';
           actionParam = 'blocked_ip';
         }
 
@@ -1362,17 +1519,17 @@
           }
 
           if (logs.length === 0) {
-            tbodyEl.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">暂无相关审计日志</td></tr>`;
-            countEl.innerText = `共 0 条日志`;
+            tbodyEl.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">暂无相关审计日志</td></tr>';
+            countEl.innerText = '共 0 条日志';
             return;
           }
 
           tbodyEl.innerHTML = logs.map(l => {
-            let actBadge = `<span class="badge badge-info">👀 查看</span>`;
-            if (l.action === 'download') actBadge = `<span class="badge badge-success">⬇️ 下载</span>`;
-            if (l.action === 'blocked_ip') actBadge = `<span class="badge badge-danger">🛡️ 拦截</span>`;
-            if (l.action === 'wrong_pwd') actBadge = `<span class="badge badge-warning">🔑 口令错</span>`;
-            if (l.action === 'invalid_code') actBadge = `<span class="badge badge-gray">❌ 码无效</span>`;
+            let actBadge = '<span class="badge badge-info">👀 查看</span>';
+            if (l.action === 'download') actBadge = '<span class="badge badge-success">⬇️ 下载</span>';
+            if (l.action === 'blocked_ip') actBadge = '<span class="badge badge-danger">🛡️ 拦截</span>';
+            if (l.action === 'wrong_pwd') actBadge = '<span class="badge badge-warning">🔑 口令错</span>';
+            if (l.action === 'invalid_code') actBadge = '<span class="badge badge-gray">❌ 码无效</span>';
 
             const safeCode = escapeHtml(l.share_code || '-');
             const safeIp = escapeHtml(l.ip);
@@ -1396,7 +1553,7 @@
 
           countEl.innerText = `展示最新 ${logs.length} 条记录`;
         } catch (e) {
-          tbodyEl.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #f43f5e; padding: 30px;">数据加载失败，请检查网络</td></tr>`;
+          tbodyEl.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #f43f5e; padding: 30px;">数据加载失败，请检查网络</td></tr>';
         }
       }
     }
@@ -1405,7 +1562,7 @@
     async function viewLogs(fileId, code) {
       document.getElementById('modal-logs-title').innerText = `📊 文件 [${code}] 访客 IP 与地区审计`;
       const tbody = document.getElementById('modal-logs-body');
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px;">加载日志中...</td></tr>`;
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px;">加载日志中...</td></tr>';
       openModal('modal-logs');
 
       try {
@@ -1414,18 +1571,18 @@
         });
         const data = await res.json();
         if (!data.data || data.data.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-dim); padding:20px;">暂无任何访客访问记录</td></tr>`;
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-dim); padding:20px;">暂无任何访客访问记录</td></tr>';
           return;
         }
 
         tbody.innerHTML = data.data.map(l => {
-          let actBadge = `<span class="badge badge-info">查看信息</span>`;
-          if (l.action === 'download') actBadge = `<span class="badge badge-success">成功下载</span>`;
-          if (l.action === 'blocked_ip') actBadge = `<span class="badge badge-danger">🛡️ 拦截IP</span>`;
-          if (l.action === 'wrong_pwd') actBadge = `<span class="badge badge-warning">口令错误</span>`;
+          let actBadge = '<span class="badge badge-info">查看信息</span>';
+          if (l.action === 'download') actBadge = '<span class="badge badge-success">成功下载</span>';
+          if (l.action === 'blocked_ip') actBadge = '<span class="badge badge-danger">🛡️ 拦截IP</span>';
+          if (l.action === 'wrong_pwd') actBadge = '<span class="badge badge-warning">口令错误</span>';
 
           const safeIp = escapeHtml(l.ip);
-          const safeLocation = escapeHtml(l.location);
+          const safeLocation = escapeHtml(l.location || '未知地区');
           const safeTime = escapeHtml(l.created_at);
 
           return `
@@ -1438,7 +1595,7 @@
           `;
         }).join('');
       } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#f43f5e; padding:20px;">加载日志失败</td></tr>`;
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#f43f5e; padding:20px;">加载日志失败</td></tr>';
       }
     }
 
@@ -1467,6 +1624,15 @@
         clearPwdWrap.style.display = 'none';
       }
 
+      // 权限通道回填：若是已分享文件则回填原有权限；若是初次从云盘开启分享，默认勾选允许下载
+      if (f.status === 'active') {
+        document.getElementById('share-cfg-preview').checked = Boolean(f.allow_preview);
+        document.getElementById('share-cfg-download').checked = Boolean(f.allow_download);
+      } else {
+        document.getElementById('share-cfg-preview').checked = false;
+        document.getElementById('share-cfg-download').checked = true; // 初次发起分享默认开启下载
+      }
+
       // 时长选择
       document.getElementById('share-cfg-expire-select').value = '24';
       document.getElementById('share-cfg-expire-custom').value = '';
@@ -1474,6 +1640,7 @@
 
       // 阅后即焚
       document.getElementById('share-cfg-burn').value = f.burn_mode !== undefined ? f.burn_mode : '0';
+      document.getElementById('share-cfg-burn-trigger').value = f.burn_trigger || 'download';
 
       // 最大下载
       document.getElementById('share-cfg-maxdl').value = f.max_downloads || 0;
@@ -1501,7 +1668,9 @@
 
     // 快捷关闭分享（转私有云盘模式）
     async function quickCloseShare(fileId, fileName) {
-      if (!confirm(`确定要关闭文件【${fileName}】的公开分享吗？\n\n关闭后文件将转入“私有云盘”模式，公网提取链接将立即关闭失效，可在后台随时再次发起分享。`)) {
+      if (!confirm(`确定要关闭文件【${fileName}】的公开分享吗？
+
+关闭后文件将转入“私有云盘”模式，公网提取链接将立即关闭失效，可在后台随时再次发起分享。`)) {
         return;
       }
       try {
@@ -1532,7 +1701,7 @@
         });
         const data = await res.json();
         if (res.status === 200) {
-          showToast('🔒 已关闭分享，文件已转入私有云盘！');
+          showToast('🔒 已关闭分享，文件已存入私有云盘！');
           closeModal('modal-share-config');
           loadDashboard();
         } else {
@@ -1547,18 +1716,29 @@
     document.getElementById('form-share-config').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fileId = document.getElementById('share-cfg-file-id').value;
-      const formData = new FormData();
+      const allowPreview = document.getElementById('share-cfg-preview').checked;
+      const allowDownload = document.getElementById('share-cfg-download').checked;
 
+      // 防呆校验：开启分享必须至少开启一项通道
+      if (!allowPreview && !allowDownload) {
+        showToast('开启分享必须至少勾选【允许在线预览】或【允许下载源文件】其中一项', true);
+        return;
+      }
+
+      const formData = new FormData();
       formData.append('custom_code', document.getElementById('share-cfg-code').value.trim());
       formData.append('remark', document.getElementById('share-cfg-remark').value.trim());
       formData.append('password', document.getElementById('share-cfg-pwd').value.trim());
       formData.append('clear_password', document.getElementById('share-cfg-clear-pwd').checked);
+      formData.append('allow_preview', allowPreview);
+      formData.append('allow_download', allowDownload);
 
       const expSel = document.getElementById('share-cfg-expire-select').value;
       const expHours = expSel === 'custom' ? parseFloat(document.getElementById('share-cfg-expire-custom').value) || 24 : parseFloat(expSel);
       formData.append('expire_hours', expHours);
 
       formData.append('burn_mode', parseInt(document.getElementById('share-cfg-burn').value) || 0);
+      formData.append('burn_trigger', document.getElementById('share-cfg-burn-trigger').value);
       formData.append('max_downloads', parseInt(document.getElementById('share-cfg-maxdl').value) || 0);
       formData.append('allowed_ips', document.getElementById('share-cfg-ips').value.trim());
 

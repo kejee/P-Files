@@ -25,6 +25,12 @@ class FileItem(Base):
     
     # 阅后即焚模式: 0 = 关闭; 1 = 仅失效分享(保留源文件); 2 = 彻底销毁(删除物理文件)
     burn_mode = Column(Integer, default=0)
+    # 即焚触发条件: 'download' (下载后即焚), 'view' (预览后即焚), 'any' (预览或下载任意交互后即焚)
+    burn_trigger = Column(String(32), default="download")
+    
+    # 权限通道独立控制: 默认私有状态下全为 False
+    allow_preview = Column(Boolean, default=False)          # 是否允许在线预览
+    allow_download = Column(Boolean, default=False)         # 是否允许下载源文件
     
     max_downloads = Column(Integer, default=0)              # 最大下载次数限制 (0 表示不限)
     allowed_ips = Column(Text, nullable=True)               # IP白名单 (支持单个/多个/CIDR)
@@ -34,8 +40,8 @@ class FileItem(Base):
     view_count = Column(Integer, default=0)                 # 查看次数
     download_count = Column(Integer, default=0)             # 下载次数
     
-    # 状态: 'active' (正常), 'expired' (已过期), 'burned' (已即焚), 'revoked' (已取消分享), 'deleted' (彻底删除)
-    status = Column(String(32), default="active", index=True)
+    # 状态: 'stored' (私有云盘), 'active' (分享中), 'expired' (已过期), 'burned' (已即焚), 'revoked' (已取消分享), 'deleted' (彻底删除)
+    status = Column(String(32), default="stored", index=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # 关联日志
@@ -88,3 +94,19 @@ async def init_db():
         if "sqlite" in settings.DATABASE_URL:
             await conn.exec_driver_sql("PRAGMA journal_mode=WAL;")
         await conn.run_sync(Base.metadata.create_all)
+        
+        # 针对已有的 SQLite 数据库执行自适应平滑迁移
+        if "sqlite" in settings.DATABASE_URL:
+            try:
+                # 获取 files 表现有所有字段名
+                res = await conn.exec_driver_sql("PRAGMA table_info(files);")
+                columns = [row[1] for row in res.fetchall()]
+                
+                if "allow_preview" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN allow_preview BOOLEAN DEFAULT 0;")
+                if "allow_download" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN allow_download BOOLEAN DEFAULT 0;")
+                if "burn_trigger" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN burn_trigger VARCHAR(32) DEFAULT 'download';")
+            except Exception:
+                pass

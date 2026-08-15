@@ -230,6 +230,20 @@ textarea.form-control {
   border-color: var(--border-active);
   background: rgba(99, 102, 241, 0.06);
 }
+.strategy-card.disabled {
+  opacity: 0.35;
+  filter: grayscale(0.85);
+  pointer-events: none;
+  cursor: not-allowed;
+  user-select: none;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+  background: rgba(15, 23, 42, 0.3) !important;
+}
+.strategy-card.disabled input,
+.strategy-card.disabled select,
+.strategy-card.disabled textarea {
+  pointer-events: none;
+}
 .strategy-header {
   display: flex;
   justify-content: space-between;

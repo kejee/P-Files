@@ -46,16 +46,19 @@
         </button>
       </div>
 
-      <!-- 步骤 2: 文件信息与口令确认 -->
+      <!-- 步骤 2: 文件信息、在线预览与下载操作 -->
       <div id="step-file-info" style="display: none; text-align: left;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
           <button id="btn-back" class="btn btn-secondary btn-sm">← 返回重填</button>
-          <span id="badge-burn" class="badge badge-danger" style="display: none;">🔥 阅后即焚</span>
+          <div style="display: flex; gap: 6px;">
+            <span id="badge-perm" class="badge" style="display: none;"></span>
+            <span id="badge-burn" class="badge badge-danger" style="display: none;">🔥 阅后即焚</span>
+          </div>
         </div>
 
         <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 18px; margin-bottom: 18px;">
           <div style="display: flex; gap: 12px; align-items: flex-start;">
-            <div style="font-size: 2.2rem; background: rgba(99, 102, 241, 0.1); padding: 8px; border-radius: 8px;">📄</div>
+            <div id="file-type-icon" style="font-size: 2.2rem; background: rgba(99, 102, 241, 0.1); padding: 8px; border-radius: 8px;">📄</div>
             <div style="flex: 1; min-width: 0;">
               <h3 id="file-name" style="font-size: 1.1rem; word-break: break-all; margin-bottom: 4px; color: #fff;">-</h3>
               <p style="color: var(--text-muted); font-size: 0.85rem;">
@@ -82,20 +85,32 @@
 
         <!-- 阅后即焚特别提示 -->
         <div id="burn-notice" style="display: none; margin-bottom: 18px; padding: 10px 14px; background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.3); border-radius: var(--radius-sm); font-size: 0.82rem; color: #fda4af;">
-          ⚠️ <strong>注意</strong>：此文件开启了阅后即焚策略，下载 1 次后将立刻自动销毁失效！
+          <span id="burn-notice-text">⚠️ <strong>注意</strong>：此文件开启了阅后即焚策略，下载或查阅后将立刻自动销毁失效！</span>
         </div>
 
-        <button id="btn-download" class="btn btn-primary btn-block" style="padding: 12px; font-size: 1rem;">
-          ⬇️ 立即安全下载
-        </button>
+        <!-- 仅预览禁止下载提示 -->
+        <div id="view-only-notice" style="display: none; margin-bottom: 18px; padding: 10px 14px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: var(--radius-sm); font-size: 0.82rem; color: #38bdf8;">
+          🛡️ <strong>安全防泄密模式</strong>：该文件仅供在线查阅，未开放源文件下载权限。
+        </div>
+
+        <!-- 操作按钮网格 -->
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <button id="btn-preview" class="btn btn-secondary btn-block" style="padding: 12px; font-size: 1rem; border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; display: none;">
+            👁️ 在线安全查阅 / 播放
+          </button>
+          
+          <button id="btn-download" class="btn btn-primary btn-block" style="padding: 12px; font-size: 1rem;">
+            ⬇️ 立即安全下载
+          </button>
+        </div>
       </div>
 
       <!-- 步骤 3: 下载完成 / 即焚销毁状态 -->
       <div id="step-destroyed" style="display: none; text-align: center;">
         <div style="font-size: 3rem; margin-bottom: 12px;">💨</div>
-        <h3 style="color: #fda4af; margin-bottom: 8px;">文件已阅后即焚销毁</h3>
+        <h3 style="color: #fda4af; margin-bottom: 8px;">文件已即焚销毁</h3>
         <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">
-          您已完成本次安全下载。根据分享策略，该文件已从系统销毁失效。
+          您已完成本次安全查阅/下载。根据分享策略，该文件已从系统销毁失效。
         </p>
         <a href="/" class="btn btn-secondary">返回首页</a>
       </div>
@@ -109,6 +124,21 @@
     </div>
   </main>
 
+  <!-- 访客端在线安全预览模态框 -->
+  <div id="modal-visitor-preview" class="modal-overlay">
+    <div class="modal-box" style="max-width: 860px; max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <h3 id="visitor-preview-title" style="font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
+          👁️ 在线查阅
+        </h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeVisitorPreview()">✕</button>
+      </div>
+      <div class="modal-body" id="visitor-preview-body" style="padding: 16px; overflow-y: auto; text-align: center; background: #0b0f19;">
+        <!-- 动态装载预览元素 -->
+      </div>
+    </div>
+  </div>
+
   <div id="toast-container"></div>
 
   <script>
@@ -118,11 +148,15 @@
     const stepFileInfo = document.getElementById('step-file-info');
     const stepDestroyed = document.getElementById('step-destroyed');
     const btnBack = document.getElementById('btn-back');
+    const btnPreview = document.getElementById('btn-preview');
     const btnDownload = document.getElementById('btn-download');
     const boxPassword = document.getElementById('box-password');
     const inputPassword = document.getElementById('input-password');
     const burnNotice = document.getElementById('burn-notice');
+    const burnNoticeText = document.getElementById('burn-notice-text');
     const badgeBurn = document.getElementById('badge-burn');
+    const badgePerm = document.getElementById('badge-perm');
+    const viewOnlyNotice = document.getElementById('view-only-notice');
 
     let currentFileInfo = null;
     let verifiedToken = null;
@@ -136,6 +170,77 @@
       container.appendChild(toast);
       setTimeout(() => toast.remove(), 4000);
     }
+
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.add('active');
+      document.body.classList.add('modal-open');
+    }
+
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('active');
+      if (!document.querySelector('.modal-overlay.active')) {
+        document.body.classList.remove('modal-open');
+      }
+    }
+
+    let hasStartedPreviewBurn = false;
+
+    function closeVisitorPreview() {
+      const body = document.getElementById('visitor-preview-body');
+      body.innerHTML = '';
+      closeModal('modal-visitor-preview');
+
+      // 若处于预览即焚状态，关闭弹窗立即触发即焚销毁
+      if (hasStartedPreviewBurn && currentFileInfo && currentFileInfo.burn_mode > 0 && (currentFileInfo.burn_trigger === 'view' || currentFileInfo.burn_trigger === 'any')) {
+        hasStartedPreviewBurn = false;
+        triggerBurnSession(currentFileInfo.share_code);
+        stepFileInfo.style.display = 'none';
+        stepDestroyed.style.display = 'block';
+      }
+    }
+
+    // 主动/离开触发即焚销毁
+    function triggerBurnSession(code) {
+      const formData = new FormData();
+      if (verifiedToken) formData.append('token', verifiedToken);
+      const pwd = inputPassword.value.trim();
+      if (pwd) formData.append('pwd', pwd);
+
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(`/api/share/burn/${encodeURIComponent(code)}`, formData);
+      } else {
+        fetch(`/api/share/burn/${encodeURIComponent(code)}`, {
+          method: 'POST',
+          body: formData,
+          keepalive: true
+        }).catch(() => {});
+      }
+    }
+
+    // 页面卸载/刷新/关闭标签页时保底即焚
+    window.addEventListener('pagehide', () => {
+      if (hasStartedPreviewBurn && currentFileInfo && currentFileInfo.burn_mode > 0 && (currentFileInfo.burn_trigger === 'view' || currentFileInfo.burn_trigger === 'any')) {
+        triggerBurnSession(currentFileInfo.share_code);
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) closeVisitorPreview();
+        });
+        overlay.addEventListener('touchmove', (e) => {
+          if (e.target === overlay) e.preventDefault();
+        }, { passive: false });
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') closeVisitorPreview();
+      });
+    });
 
     async function queryFile() {
       const code = inputCode.value.trim();
@@ -181,8 +286,25 @@
       let ext = '';
       if (lastDot > 0) {
         stem = filename.slice(0, lastDot);
-        ext = filename.slice(lastDot);
+        ext = filename.slice(lastDot).toLowerCase();
       }
+
+      // 文件类型图标
+      const iconEl = document.getElementById('file-type-icon');
+      if (['.mp4', '.webm', '.mov', '.mkv'].includes(ext)) {
+        iconEl.innerText = '🎬';
+      } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'].includes(ext)) {
+        iconEl.innerText = '🖼️';
+      } else if (['.mp3', '.wav', '.ogg', '.m4a', '.flac'].includes(ext)) {
+        iconEl.innerText = '🎵';
+      } else if (ext === '.pdf') {
+        iconEl.innerText = '📕';
+      } else if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext)) {
+        iconEl.innerText = '📦';
+      } else {
+        iconEl.innerText = '📄';
+      }
+
       const fnEl = document.getElementById('file-name');
       fnEl.title = filename;
       fnEl.innerHTML = `
@@ -212,10 +334,47 @@
         boxPassword.style.display = 'none';
       }
 
+      // 权限模式与按钮状态
+      if (info.allow_preview && !info.allow_download) {
+        badgePerm.innerText = '👁️ 仅在线查阅';
+        badgePerm.style.background = 'rgba(56, 189, 248, 0.2)';
+        badgePerm.style.color = '#38bdf8';
+        badgePerm.style.display = 'inline-flex';
+
+        btnPreview.style.display = 'block';
+        btnDownload.style.display = 'none';
+        viewOnlyNotice.style.display = 'block';
+      } else if (!info.allow_preview && info.allow_download) {
+        badgePerm.innerText = '⬇️ 仅限下载';
+        badgePerm.style.background = 'rgba(167, 243, 208, 0.2)';
+        badgePerm.style.color = '#a7f3d0';
+        badgePerm.style.display = 'inline-flex';
+
+        btnPreview.style.display = 'none';
+        btnDownload.style.display = 'block';
+        viewOnlyNotice.style.display = 'none';
+      } else {
+        badgePerm.innerText = '🌟 预览+下载';
+        badgePerm.style.background = 'rgba(192, 132, 252, 0.2)';
+        badgePerm.style.color = '#c084fc';
+        badgePerm.style.display = 'inline-flex';
+
+        btnPreview.style.display = 'block';
+        btnDownload.style.display = 'block';
+        viewOnlyNotice.style.display = 'none';
+      }
+
       // 阅后即焚展示
       if (info.burn_mode > 0) {
         burnNotice.style.display = 'block';
         badgeBurn.style.display = 'inline-flex';
+        if (info.burn_trigger === 'view') {
+          burnNoticeText.innerHTML = '⚠️ <strong>注意</strong>：此文件开启了【预览后即焚】，在线查阅 1 次后将立刻自动销毁失效！';
+        } else if (info.burn_trigger === 'any') {
+          burnNoticeText.innerHTML = '⚠️ <strong>注意</strong>：此文件开启了【交互后即焚】，进行查阅或下载后将立刻自动销毁失效！';
+        } else {
+          burnNoticeText.innerHTML = '⚠️ <strong>注意</strong>：此文件开启了【下载后即焚】，下载 1 次后将立刻自动销毁失效！';
+        }
       } else {
         burnNotice.style.display = 'none';
         badgeBurn.style.display = 'none';
@@ -225,55 +384,135 @@
       stepFileInfo.style.display = 'block';
     }
 
+    // 口令鉴权通用方法
+    async function ensureVerifiedToken() {
+      if (!currentFileInfo || !currentFileInfo.requires_password) return true;
+      if (verifiedToken) return true;
+
+      const pwd = inputPassword.value.trim();
+      if (!pwd) {
+        showToast('请输入访问口令', true);
+        return false;
+      }
+
+      const formData = new FormData();
+      formData.append('code', currentFileInfo.share_code);
+      formData.append('password', pwd);
+
+      try {
+        const vRes = await fetch('/api/share/verify', {
+          method: 'POST',
+          body: formData
+        });
+        const vData = await vRes.json();
+        if (vRes.status !== 200) {
+          showToast(vData.detail || '口令错误', true);
+          return false;
+        }
+        verifiedToken = vData.download_token;
+        return true;
+      } catch (e) {
+        showToast('校验网络异常', true);
+        return false;
+      }
+    }
+
+    // 在线安全查阅
+    async function handlePreview() {
+      if (!currentFileInfo) return;
+
+      btnPreview.disabled = true;
+      btnPreview.innerText = '正在载入预览...';
+
+      const ok = await ensureVerifiedToken();
+      btnPreview.disabled = false;
+      btnPreview.innerText = '👁️ 在线安全查阅 / 播放';
+
+      if (!ok) return;
+
+      const titleEl = document.getElementById('visitor-preview-title');
+      const bodyEl = document.getElementById('visitor-preview-body');
+      titleEl.innerText = `👁️ 在线查阅: ${currentFileInfo.filename}`;
+      bodyEl.innerHTML = '<div style="color:var(--text-dim); padding:30px;">正在加载流媒体资源...</div>';
+      
+      // 若开启了阅后即焚，标记已开启查阅会话
+      if (currentFileInfo.burn_mode > 0 && (currentFileInfo.burn_trigger === 'view' || currentFileInfo.burn_trigger === 'any')) {
+        hasStartedPreviewBurn = true;
+      }
+
+      openModal('modal-visitor-preview');
+
+      let previewUrl = `/api/share/preview/${encodeURIComponent(currentFileInfo.share_code)}`;
+      if (verifiedToken) {
+        previewUrl += `?token=${encodeURIComponent(verifiedToken)}`;
+      } else if (inputPassword.value.trim()) {
+        previewUrl += `?pwd=${encodeURIComponent(inputPassword.value.trim())}`;
+      }
+
+      const fn = currentFileInfo.filename.toLowerCase();
+      if (fn.endsWith('.mp4') || fn.endsWith('.webm') || fn.endsWith('.mov') || fn.endsWith('.mkv')) {
+        bodyEl.innerHTML = `
+          <video controls autoplay controlsList="nodownload" playsinline style="max-width: 100%; max-height: 70vh; width: 100%; border-radius: 8px; background: #000;">
+            <source src="${previewUrl}">
+            您的浏览器不支持播放该视频
+          </video>
+        `;
+      } else if (fn.endsWith('.jpg') || fn.endsWith('.jpeg') || fn.endsWith('.png') || fn.endsWith('.gif') || fn.endsWith('.webp') || fn.endsWith('.svg')) {
+        bodyEl.innerHTML = `
+          <img src="${previewUrl}" style="max-width: 100%; max-height: 75vh; object-fit: contain; border-radius: 8px;" alt="${currentFileInfo.filename}">
+        `;
+      } else if (fn.endsWith('.mp3') || fn.endsWith('.wav') || fn.endsWith('.ogg') || fn.endsWith('.m4a') || fn.endsWith('.flac')) {
+        bodyEl.innerHTML = `
+          <div style="padding: 40px 20px;">
+            <div style="font-size: 3.5rem; margin-bottom: 16px;">🎵</div>
+            <audio controls autoplay controlsList="nodownload" style="width: 100%; max-width: 480px;">
+              <source src="${previewUrl}">
+              您的浏览器不支持音频播放
+            </audio>
+          </div>
+        `;
+      } else if (fn.endsWith('.pdf')) {
+        bodyEl.innerHTML = `
+          <iframe src="${previewUrl}" style="width: 100%; height: 75vh; border: none; border-radius: 8px;"></iframe>
+        `;
+      } else {
+        // 尝试文本流式获取并高亮渲染
+        try {
+          const tRes = await fetch(previewUrl);
+          if (tRes.ok) {
+            const textContent = await tRes.text();
+            bodyEl.innerHTML = `
+              <pre style="text-align: left; background: rgba(0,0,0,0.5); padding: 16px; border-radius: 8px; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; white-space: pre-wrap; word-break: break-all; max-height: 70vh; overflow-y: auto;"><code>${escapeHtml(textContent)}</code></pre>
+            `;
+          } else {
+            bodyEl.innerHTML = `<div style="padding:40px; color:#fda4af;">该文件类型暂不支持直接在线解析，请通过下载方式获取</div>`;
+          }
+        } catch (e) {
+          bodyEl.innerHTML = `<div style="padding:40px; color:#fda4af;">文本加载失败</div>`;
+        }
+      }
+    }
+
+    // 触发下载
     async function handleDownload() {
       if (!currentFileInfo) return;
 
-      let pwd = '';
-      if (currentFileInfo.requires_password) {
-        pwd = inputPassword.value.trim();
-        if (!pwd) {
-          showToast('请输入访问口令', true);
-          return;
-        }
+      btnDownload.disabled = true;
+      btnDownload.innerText = '准备安全下载...';
 
-        btnDownload.disabled = true;
-        btnDownload.innerText = '口令校验中...';
+      const ok = await ensureVerifiedToken();
+      btnDownload.disabled = false;
+      btnDownload.innerText = '⬇️ 立即安全下载';
 
-        // 先校验口令
-        const formData = new FormData();
-        formData.append('code', currentFileInfo.share_code);
-        formData.append('password', pwd);
+      if (!ok) return;
 
-        try {
-          const vRes = await fetch('/api/share/verify', {
-            method: 'POST',
-            body: formData
-          });
-          const vData = await vRes.json();
-          if (vRes.status !== 200) {
-            showToast(vData.detail || '口令错误', true);
-            btnDownload.disabled = false;
-            btnDownload.innerText = '⬇️ 立即安全下载';
-            return;
-          }
-          verifiedToken = vData.download_token;
-        } catch (e) {
-          showToast('校验网络异常', true);
-          btnDownload.disabled = false;
-          btnDownload.innerText = '⬇️ 立即安全下载';
-          return;
-        }
-      }
-
-      // 触发下载
       let downloadUrl = `/api/share/download/${encodeURIComponent(currentFileInfo.share_code)}`;
       if (verifiedToken) {
         downloadUrl += `?token=${encodeURIComponent(verifiedToken)}`;
-      } else if (pwd) {
-        downloadUrl += `?pwd=${encodeURIComponent(pwd)}`;
+      } else if (inputPassword.value.trim()) {
+        downloadUrl += `?pwd=${encodeURIComponent(inputPassword.value.trim())}`;
       }
 
-      // 创建隐藏 iframe 或直接导航下载
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.setAttribute('download', currentFileInfo.filename);
@@ -283,13 +522,23 @@
 
       showToast('下载已开始！');
 
-      // 若为阅后即焚，更新界面
-      if (currentFileInfo.burn_mode > 0) {
+      // 若为下载后即焚或任意交互即焚，更新界面
+      if (currentFileInfo.burn_mode > 0 && (currentFileInfo.burn_trigger === 'download' || currentFileInfo.burn_trigger === 'any')) {
         setTimeout(() => {
           stepFileInfo.style.display = 'none';
           stepDestroyed.style.display = 'block';
         }, 1200);
       }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
     btnQuery.addEventListener('click', queryFile);
@@ -300,8 +549,17 @@
       stepCode.style.display = 'block';
     });
 
+    btnPreview.addEventListener('click', handlePreview);
     btnDownload.addEventListener('click', handleDownload);
-    inputPassword.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleDownload(); });
+    inputPassword.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (currentFileInfo && currentFileInfo.allow_download) {
+          handleDownload();
+        } else {
+          handlePreview();
+        }
+      }
+    });
 
     // 如果 URL 中有 code，自动触发查询
     if (inputCode.value.trim()) {

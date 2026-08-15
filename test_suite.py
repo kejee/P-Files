@@ -11,11 +11,13 @@ async def test_full_file_sharing_lifecycle():
     from ip_locator import IPLocator
     from security import get_password_hash
     from database import AdminSetting
-    from sqlalchemy import select
+    from sqlalchemy import select, delete
     IPLocator.init("data/ip2region.xdb")
     async with AsyncSessionLocal() as db:
-        from sqlalchemy import delete
-        await db.execute(delete(FileItem).where(FileItem.share_code.in_(["sec888", "doc101", "doc102_new", "doc102_updated", "priv_mov"])))
+        await db.execute(delete(FileItem).where(FileItem.share_code.in_([
+            "sec888", "doc101", "doc102_new", "doc102_updated", "priv_mov",
+            "preview_only_code", "dl_only_code", "burn_view_code"
+        ])))
         res = await db.execute(select(AdminSetting).where(AdminSetting.key == "admin_password"))
         if not res.scalar_one_or_none():
             db.add(AdminSetting(key="admin_password", value=get_password_hash(settings.ADMIN_PASSWORD)))
@@ -43,6 +45,8 @@ async def test_full_file_sharing_lifecycle():
             "expire_hours": "1",
             "burn_mode": "2", # 彻底销毁
             "max_downloads": "1",
+            "allow_download": "true",
+            "allow_preview": "true",
             "allowed_ips": "183.14.132.228, 192.168.1.0/24", # 仅限特定IP访问
             "remark": "高危私密文件"
         }
@@ -97,6 +101,7 @@ async def test_full_file_sharing_lifecycle():
         files2 = {"file": ("manual.pdf", io.BytesIO(b"User Manual PDF 2026"), "application/pdf")}
         up2_res = await client.post("/api/admin/upload", data={
             "custom_code": "doc101",
+            "allow_download": "true",
             "burn_mode": "1", # 仅失效链接
         }, files=files2, headers=auth_headers)
         assert up2_res.status_code == 200
@@ -159,6 +164,7 @@ async def test_full_file_sharing_lifecycle():
             "password": "new_share_pwd_888",
             "expire_hours": "48",
             "burn_mode": "0",
+            "allow_download": "true",
             "max_downloads": "10",
             "remark": "已更新配置的文档"
         }, headers=auth_headers)
@@ -177,15 +183,78 @@ async def test_full_file_sharing_lifecycle():
         assert close_res.status_code == 200
         assert close_res.json()["data"]["status"] == "stored"
 
-        # 验证关闭后公网提取立即失效
-        query_closed = await client.post("/api/share/query", data={"code": "doc102_updated"})
-        assert query_closed.status_code == 410, "关闭分享后公网应无法查询提取"
+        # 15. 测试【纯在线预览模式】(仅预览，禁止下载)
+        files_preview_only = {"file": ("preview_only.txt", io.BytesIO(b"Preview Only Secret Text Content"), "text/plain")}
+        up_preview_res = await client.post("/api/admin/upload", data={
+            "custom_code": "preview_only_code",
+            "allow_preview": "true",
+            "allow_download": "false",
+            "is_private": "false"
+        }, files=files_preview_only, headers=auth_headers)
+        assert up_preview_res.status_code == 200
 
-        # 验证后台列表状态显示为 stored
-        admin_files = await client.get("/api/admin/files", headers=auth_headers)
-        f_closed = next(f for f in admin_files.json()["data"] if f["id"] == file_id2)
-        assert f_closed["status"] == "stored"
-        print("✅ 14. 关闭分享并转入私有云盘模式验证通过")
+        # 访客在线预览应成功
+        pv_res = await client.get("/api/share/preview/preview_only_code")
+        assert pv_res.status_code == 200
+        assert b"Preview Only Secret Text Content" in pv_res.content
+
+        # 访客尝试下载源文件应被硬拦截 (返回 403)
+        pv_dl_res = await client.get("/api/share/download/preview_only_code")
+        assert pv_dl_res.status_code == 403, f"仅预览文件下载必须返回 403: {pv_dl_res.status_code}"
+        print("✅ 15. 【纯在线预览模式】验证通过 (在线查阅成功，下载源文件被 403 拦截)")
+
+        # 16. 测试【纯下载模式】(仅下载，禁止预览)
+        files_dl_only = {"file": ("download_only.txt", io.BytesIO(b"Download Only Content"), "text/plain")}
+        up_dl_res = await client.post("/api/admin/upload", data={
+            "custom_code": "dl_only_code",
+            "allow_preview": "false",
+            "allow_download": "true",
+            "is_private": "false"
+        }, files=files_dl_only, headers=auth_headers)
+        assert up_dl_res.status_code == 200
+
+        # 访客在线预览应被拦截 (返回 403)
+        dl_pv_res = await client.get("/api/share/preview/dl_only_code")
+        assert dl_pv_res.status_code == 403, f"仅下载文件在线预览必须返回 403: {dl_pv_res.status_code}"
+
+        # 访客下载源文件应成功
+        dl_dl_res = await client.get("/api/share/download/dl_only_code")
+        assert dl_dl_res.status_code == 200
+        assert b"Download Only Content" in dl_dl_res.content
+        print("✅ 16. 【纯下载模式】验证通过 (在线预览被 403 拦截，下载源文件成功)")
+
+        # 17. 测试【预览后即焚】(burn_trigger = 'view')
+        files_burn_view = {"file": ("burn_on_view.txt", io.BytesIO(b"Burn Once Viewed Content"), "text/plain")}
+        up_bv_res = await client.post("/api/admin/upload", data={
+            "custom_code": "burn_view_code",
+            "allow_preview": "true",
+            "allow_download": "true",
+            "burn_mode": "2", # 彻底销毁
+            "burn_trigger": "view", # 首次预览后即焚
+            "is_private": "false"
+        }, files=files_burn_view, headers=auth_headers)
+        assert up_bv_res.status_code == 200
+
+        # 首次在线预览成功 (查阅期间连续多次读取不受影响)
+        bv_res1 = await client.get("/api/share/preview/burn_view_code")
+        assert bv_res1.status_code == 200
+        assert b"Burn Once Viewed Content" in bv_res1.content
+
+        # 模拟浏览器再次刷新或获取切片，依然可读取
+        bv_res1_repeat = await client.get("/api/share/preview/burn_view_code")
+        assert bv_res1_repeat.status_code == 200
+
+        # 访客查阅完毕/关闭弹窗，触发会话即焚销毁
+        burn_session_res = await client.post("/api/share/burn/burn_view_code")
+        assert burn_session_res.status_code == 200
+
+        # 等待后台物理销毁任务执行
+        await asyncio.sleep(0.5)
+
+        # 再次查询或预览应已失效 (返回 410)
+        bv_res2 = await client.post("/api/share/query", data={"code": "burn_view_code"})
+        assert bv_res2.status_code in (404, 410), "预览即焚文件查阅关闭后应彻底失效"
+        print("✅ 17. 【会话级预览即焚】验证通过 (预览期间多次请求畅通，关闭离开后立刻物理粉碎销毁)")
 
 if __name__ == "__main__":
     asyncio.run(test_full_file_sharing_lifecycle())

@@ -271,6 +271,9 @@ async def admin_upload_file(
     password: Optional[str] = Form(None),
     expire_hours: Optional[float] = Form(0), # 0 为永久有效
     burn_mode: int = Form(0), # 0=关闭, 1=仅失效分享, 2=彻底物理删除
+    burn_trigger: str = Form("download"), # download (下载后), view (预览后), any (任意后)
+    allow_preview: bool = Form(False), # 是否允许在线预览
+    allow_download: bool = Form(False), # 是否允许下载源文件
     max_downloads: int = Form(0), # 0=不限
     allowed_ips: Optional[str] = Form(None),
     remark: Optional[str] = Form(None),
@@ -280,8 +283,12 @@ async def admin_upload_file(
 ):
     """
     管理后台上传并配置分享策略 / 私有云盘暂存
-    支持多条件独立自由组合（口令、有效时长、两种即焚模式、最大下载次数、IP白名单、私有归档）
+    支持多条件独立自由组合（口令、有效时长、两种即焚模式、即焚时机、预览/下载权限、最大下载次数、IP白名单、私有归档）
     """
+    # 若开启公开分享，必须至少开启【允许预览】或【允许下载】其中之一
+    if not is_private and not allow_preview and not allow_download:
+        raise HTTPException(status_code=400, detail="公开分享必须至少开启【允许在线预览】或【允许下载源文件】其中一项")
+
     # 提取码处理
     share_code = custom_code.strip() if (custom_code and custom_code.strip()) else generate_share_code(6)
     
@@ -327,7 +334,10 @@ async def admin_upload_file(
 
     init_status = "stored" if is_private else "active"
 
-    # 创建数据库记录
+    # 创建数据库记录 (私有云盘模式下对外权限强制为 False)
+    final_allow_preview = False if is_private else allow_preview
+    final_allow_download = False if is_private else allow_download
+
     file_item = FileItem(
         share_code=share_code,
         original_filename=file.filename,
@@ -338,6 +348,9 @@ async def admin_upload_file(
         password_hash=pwd_hash,
         expire_at=expire_at,
         burn_mode=burn_mode,
+        burn_trigger=burn_trigger if burn_trigger in ["download", "view", "any"] else "download",
+        allow_preview=final_allow_preview,
+        allow_download=final_allow_download,
         max_downloads=max_downloads,
         allowed_ips=allowed_ips.strip() if allowed_ips else None,
         remark=remark.strip() if remark else None,
@@ -359,7 +372,10 @@ async def admin_upload_file(
             "filename": file_item.original_filename,
             "file_size": file_item.file_size,
             "is_private": is_private,
-            "status": file_item.status
+            "status": file_item.status,
+            "allow_preview": file_item.allow_preview,
+            "allow_download": file_item.allow_download,
+            "burn_trigger": file_item.burn_trigger
         }
     }
 
@@ -456,6 +472,9 @@ async def admin_get_files(
             "expire_at": f.expire_at.strftime("%Y-%m-%d %H:%M:%S") if f.expire_at else "永久有效",
             "is_expired": is_expired,
             "burn_mode": f.burn_mode,
+            "burn_trigger": f.burn_trigger or "download",
+            "allow_preview": bool(f.allow_preview),
+            "allow_download": bool(f.allow_download),
             "max_downloads": f.max_downloads,
             "view_count": f.view_count,
             "download_count": f.download_count,
@@ -539,6 +558,8 @@ async def admin_close_share(
         raise HTTPException(status_code=404, detail="文件记录不存在")
 
     f.status = "stored"
+    f.allow_preview = False
+    f.allow_download = False
     await db.commit()
     return {
         "code": 200,
@@ -558,6 +579,9 @@ async def admin_update_share_config(
     clear_password: bool = Form(False),
     expire_hours: Optional[float] = Form(0), # 0 为永久有效
     burn_mode: int = Form(0), # 0=关闭, 1=仅失效分享, 2=彻底物理删除
+    burn_trigger: str = Form("download"), # download, view, any
+    allow_preview: bool = Form(False),
+    allow_download: bool = Form(False),
     max_downloads: int = Form(0), # 0=不限
     allowed_ips: Optional[str] = Form(None),
     remark: Optional[str] = Form(None),
@@ -565,8 +589,12 @@ async def admin_update_share_config(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    修改/配置并开启文件分享策略（支持修改提取码、口令、有效时长、即焚、下载限制、IP白名单、备注等）
+    修改/配置并开启文件分享策略（支持修改提取码、口令、有效时长、即焚模式/时机、预览/下载权限、下载限制、IP白名单、备注等）
     """
+    # 开启公开分享时防呆校验
+    if not allow_preview and not allow_download:
+        raise HTTPException(status_code=400, detail="开启分享必须至少勾选【允许在线预览】或【允许下载源文件】其中一项")
+
     res = await db.execute(select(FileItem).where(FileItem.id == file_id))
     f = res.scalar_one_or_none()
     if not f:
@@ -606,6 +634,9 @@ async def admin_update_share_config(
         f.expire_at = None
 
     f.burn_mode = burn_mode
+    f.burn_trigger = burn_trigger if burn_trigger in ["download", "view", "any"] else "download"
+    f.allow_preview = allow_preview
+    f.allow_download = allow_download
     f.max_downloads = max_downloads
     f.allowed_ips = allowed_ips.strip() if allowed_ips and allowed_ips.strip() else None
     f.status = "active"
@@ -617,7 +648,10 @@ async def admin_update_share_config(
         "data": {
             "id": f.id,
             "share_code": f.share_code,
-            "status": f.status
+            "status": f.status,
+            "allow_preview": f.allow_preview,
+            "allow_download": f.allow_download,
+            "burn_trigger": f.burn_trigger
         }
     }
 
@@ -628,6 +662,9 @@ async def admin_reshare_file(
     password: Optional[str] = Form(None),
     expire_hours: Optional[float] = Form(0),
     burn_mode: int = Form(0),
+    burn_trigger: str = Form("download"),
+    allow_preview: bool = Form(False),
+    allow_download: bool = Form(True),
     max_downloads: int = Form(0),
     allowed_ips: Optional[str] = Form(None),
     admin: str = Depends(get_current_admin),
@@ -643,6 +680,9 @@ async def admin_reshare_file(
         clear_password=False,
         expire_hours=expire_hours,
         burn_mode=burn_mode,
+        burn_trigger=burn_trigger if isinstance(burn_trigger, str) else "download",
+        allow_preview=bool(allow_preview),
+        allow_download=bool(allow_download),
         max_downloads=max_downloads,
         allowed_ips=allowed_ips,
         remark=None,
@@ -787,6 +827,9 @@ async def share_query_file_info(
             "file_size_formatted": format_file_size(f.file_size),
             "requires_password": f.has_password,
             "burn_mode": f.burn_mode,
+            "burn_trigger": f.burn_trigger or "download",
+            "allow_preview": bool(f.allow_preview),
+            "allow_download": bool(f.allow_download),
             "expire_at": f.expire_at.strftime("%Y-%m-%d %H:%M:%S") if f.expire_at else "永久有效",
             "view_count": f.view_count,
             "download_count": f.download_count,
@@ -840,7 +883,7 @@ async def share_verify_password(
         raise HTTPException(status_code=400, detail="查看口令错误")
 
     share_pwd_limiter.record_success(client_ip)
-    # 生成一次性/临时下载授权凭证
+    # 生成一次性/临时访问授权凭证
     download_token = create_access_token(
         data={"code": clean_code, "action": "download"},
         expires_delta=datetime.timedelta(minutes=15)
@@ -848,8 +891,8 @@ async def share_verify_password(
 
     return {"code": 200, "message": "口令验证通过", "download_token": download_token}
 
-@app.get("/api/share/download/{code}")
-async def share_download_file(
+@app.get("/api/share/preview/{code}")
+async def share_preview_file(
     code: str,
     request: Request,
     background_tasks: BackgroundTasks,
@@ -858,8 +901,8 @@ async def share_download_file(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    文件下载流接口
-    负责鉴权、IP记录、下载计数增加、阅后即焚（物理擦除/失效）处理
+    访客在线安全流式预览接口
+    支持图片、音视频流式播放、PDF 在线渲染及代码/文本查看；支持预览后即焚
     """
     clean_code = code.strip()
     client_ip = get_client_ip(request)
@@ -891,7 +934,11 @@ async def share_download_file(
     if f.status != "active" or (f.expire_at and f.expire_at <= now):
         raise HTTPException(status_code=410, detail="该分享已过期或已失效")
 
-    # 3. 口令验证
+    # 3. 权限校验：是否开启了在线预览
+    if not f.allow_preview:
+        raise HTTPException(status_code=403, detail="该文件未开启在线预览权限")
+
+    # 4. 口令验证
     if f.has_password:
         authorized = False
         if token:
@@ -905,7 +952,7 @@ async def share_download_file(
         if not authorized:
             raise HTTPException(status_code=401, detail="请先提供正确的查看口令")
 
-    # 4. 物理文件存在性与路径沙箱校验 (彻底防御路径穿越攻击)
+    # 5. 物理文件存在性与沙箱校验
     file_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.stored_filename))
     if not file_path.startswith(os.path.abspath(settings.UPLOAD_DIR)):
         raise HTTPException(status_code=403, detail="非法文件访问路径")
@@ -915,7 +962,192 @@ async def share_download_file(
         await db.commit()
         raise HTTPException(status_code=404, detail="底层物理文件不存在或已被销毁")
 
-    # 5. 递增下载计数并记录下载日志
+    # 6. 处理【预览即焚】保底定时任务 (确保流媒体传输会话期间不中断，10分钟保底清理)
+    if f.burn_mode > 0 and (f.burn_trigger in ["view", "any"]):
+        async def backup_auto_burn_job(target_id: int, path: str, mode: int):
+            try:
+                await asyncio.sleep(600) # 10 分钟后保底清理
+                async with AsyncSessionLocal() as session:
+                    res_b = await session.execute(select(FileItem).where(FileItem.id == target_id))
+                    item_b = res_b.scalar_one_or_none()
+                    if item_b and item_b.status == "active":
+                        item_b.status = "burned"
+                        await session.commit()
+                if mode == 2 and os.path.exists(path):
+                    os.remove(path)
+            except Exception:
+                pass
+        
+        # 异步启动保底任务
+        asyncio.create_task(backup_auto_burn_job(f.id, file_path, f.burn_mode))
+
+    await db.commit()
+
+    # 7. MIME 类型探测
+    import mimetypes
+    mime_type, _ = mimetypes.guess_type(f.original_filename)
+    if not mime_type:
+        mime_type = f.content_type or "application/octet-stream"
+    
+    # 针对文本类文件强制指定 UTF-8 编码，防止中文乱码
+    if mime_type.startswith("text/") or f.original_filename.lower().endswith(('.md', '.py', '.js', '.json', '.yml', '.yaml', '.log', '.sh', '.sql')):
+        mime_type = "text/plain; charset=utf-8"
+
+    quoted_name = quote(f.original_filename)
+    headers = {
+        "Content-Disposition": f"inline; filename*=UTF-8''{quoted_name}",
+        "Accept-Ranges": "bytes",
+        "X-Content-Type-Options": "nosniff"
+    }
+
+    return FileResponse(
+        path=file_path,
+        media_type=mime_type,
+        headers=headers
+    )
+
+@app.post("/api/share/burn/{code}")
+async def share_burn_file_session(
+    code: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    token: Optional[str] = Form(None),
+    pwd: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    访客预览结束/离开页面时触发的即焚销毁接口 (支持 sendBeacon 与主动关闭)
+    """
+    clean_code = code.strip()
+    client_ip = get_client_ip(request)
+    location = IPLocator.get_location(client_ip)
+    user_agent = request.headers.get("User-Agent", "")[:250]
+
+    stmt = select(FileItem).where(FileItem.share_code == clean_code)
+    res = await db.execute(stmt)
+    f = res.scalar_one_or_none()
+
+    if not f:
+        return {"code": 200, "message": "文件已销毁或不存在"}
+
+    if f.status != "active":
+        return {"code": 200, "message": "文件已失效"}
+
+    # 校验口令 (若有)
+    if f.has_password:
+        authorized = False
+        if token:
+            payload = decode_access_token(token)
+            if payload and payload.get("code") == clean_code:
+                authorized = True
+        elif pwd and verify_password(pwd, f.password_hash):
+            authorized = True
+
+        if not authorized:
+            raise HTTPException(status_code=401, detail="口令鉴权失败")
+
+    # 执行即焚逻辑
+    if f.burn_mode > 0:
+        file_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.stored_filename))
+        if f.burn_mode == 2: # 彻底物理粉碎
+            f.status = "burned"
+            def destroy_file_disk(path: str):
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except Exception:
+                    pass
+            background_tasks.add_task(destroy_file_disk, file_path)
+        else:
+            f.status = "burned"
+
+        db.add(AccessLog(
+            file_id=f.id,
+            share_code=clean_code,
+            action="burned",
+            ip=client_ip,
+            location=location,
+            user_agent=user_agent
+        ))
+        await db.commit()
+
+    return {"code": 200, "message": "文件已成功执行即焚销毁"}
+
+@app.get("/api/share/download/{code}")
+async def share_download_file(
+    code: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    pwd: Optional[str] = None,
+    token: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    文件下载流接口
+    负责鉴权、IP记录、下载权限校验、下载计数增加、阅后即焚（物理擦除/失效）处理
+    """
+    clean_code = code.strip()
+    client_ip = get_client_ip(request)
+    location = IPLocator.get_location(client_ip)
+    user_agent = request.headers.get("User-Agent", "")[:250]
+
+    stmt = select(FileItem).where(FileItem.share_code == clean_code)
+    res = await db.execute(stmt)
+    f = res.scalar_one_or_none()
+
+    if not f:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    # 1. IP 白名单校验
+    if not is_ip_allowed(client_ip, f.allowed_ips):
+        db.add(AccessLog(
+            file_id=f.id,
+            share_code=clean_code,
+            action="blocked_ip",
+            ip=client_ip,
+            location=location,
+            user_agent=user_agent
+        ))
+        await db.commit()
+        raise HTTPException(status_code=403, detail="当前 IP 不在允许访问白名单内")
+
+    # 2. 状态与过期时间检查
+    now = datetime.datetime.utcnow()
+    if f.status != "active" or (f.expire_at and f.expire_at <= now):
+        raise HTTPException(status_code=410, detail="该分享已过期或已失效")
+
+    # 3. 权限校验：是否允许下载源文件
+    if not f.allow_download:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="该文件已开启安全防泄密模式（仅供在线查阅，未开放源文件下载权限）"
+        )
+
+    # 4. 口令验证
+    if f.has_password:
+        authorized = False
+        if token:
+            payload = decode_access_token(token)
+            if payload and payload.get("code") == clean_code:
+                authorized = True
+        elif pwd:
+            if verify_password(pwd, f.password_hash):
+                authorized = True
+
+        if not authorized:
+            raise HTTPException(status_code=401, detail="请先提供正确的查看口令")
+
+    # 5. 物理文件存在性与路径沙箱校验 (彻底防御路径穿越攻击)
+    file_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.stored_filename))
+    if not file_path.startswith(os.path.abspath(settings.UPLOAD_DIR)):
+        raise HTTPException(status_code=403, detail="非法文件访问路径")
+
+    if not os.path.exists(file_path):
+        f.status = "deleted"
+        await db.commit()
+        raise HTTPException(status_code=404, detail="底层物理文件不存在或已被销毁")
+
+    # 6. 递增下载计数并记录下载日志
     f.download_count += 1
     db.add(AccessLog(
         file_id=f.id,
@@ -926,9 +1158,9 @@ async def share_download_file(
         user_agent=user_agent
     ))
 
-    # 6. 处理“阅后即焚”与最大下载限制
+    # 7. 处理【下载后即焚】(burn_trigger 为 download 或 any)
     should_burn = False
-    if f.burn_mode > 0:
+    if f.burn_mode > 0 and (f.burn_trigger in ["download", "any"]):
         should_burn = True
     elif f.max_downloads > 0 and f.download_count >= f.max_downloads:
         should_burn = True
@@ -936,7 +1168,6 @@ async def share_download_file(
     if should_burn:
         if f.burn_mode == 2: # 彻底物理销毁
             f.status = "burned"
-            # 后台安全异步物理删除磁盘文件
             def destroy_file_disk(path: str):
                 try:
                     if os.path.exists(path):
