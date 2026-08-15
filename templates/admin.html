@@ -90,15 +90,21 @@
     <div class="container nav-content">
       <div class="brand">
         <div class="brand-icon">📦</div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span>P-Files 管理控制台</span>
+        <div class="brand-text-wrap" style="display: flex; align-items: center; gap: 8px;">
+          <span class="brand-title">P-Files <span class="brand-subtitle">管理控制台</span></span>
           <span class="version-badge">v{{ version }}</span>
         </div>
       </div>
       <div class="nav-actions">
-        <a href="/" target="_blank" class="btn btn-secondary btn-sm">🔗 打开提取首页</a>
-        <button id="btn-modal-pwd" class="btn btn-secondary btn-sm">🔑 修改密码</button>
-        <button id="btn-logout" class="btn btn-danger btn-sm">🚪 退出登录</button>
+        <a href="/" target="_blank" class="btn btn-secondary btn-sm nav-btn-item" title="打开提取首页">
+          <span class="btn-icon">🔗</span><span class="btn-text-full">打开提取首页</span><span class="btn-text-short">提取页</span>
+        </a>
+        <button id="btn-modal-pwd" class="btn btn-secondary btn-sm nav-btn-item" title="修改管理员密码">
+          <span class="btn-icon">🔑</span><span class="btn-text-full">修改密码</span><span class="btn-text-short">改密</span>
+        </button>
+        <button id="btn-logout" class="btn btn-danger btn-sm nav-btn-item" title="退出管理登录">
+          <span class="btn-icon">🚪</span><span class="btn-text-full">退出登录</span><span class="btn-text-short">退出</span>
+        </button>
       </div>
     </div>
   </header>

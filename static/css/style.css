@@ -127,6 +127,12 @@ body {
   align-items: center;
   gap: 12px;
 }
+.btn-text-short {
+  display: none;
+}
+.btn-text-full {
+  display: inline;
+}
 
 /* 按钮设计 */
 .btn {
@@ -567,20 +573,49 @@ body.modal-open {
   }
   
   .navbar .nav-content {
-    height: auto;
-    padding: 10px 0;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .brand {
-    font-size: 1.1rem;
-  }
-  .nav-actions {
+    height: 52px;
+    padding: 0;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    align-items: center;
     gap: 6px;
   }
+  .brand {
+    font-size: 1rem;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .brand-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 0.95rem;
+    border-radius: 6px;
+  }
+  .brand-subtitle {
+    display: none;
+  }
+  .version-badge {
+    font-size: 0.65rem;
+    padding: 1px 4px;
+  }
+  .nav-actions {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    flex-shrink: 0;
+  }
   .nav-actions .btn {
-    padding: 5px 10px;
-    font-size: 0.8rem;
+    padding: 5px 8px;
+    font-size: 0.76rem;
+    border-radius: 6px;
+    gap: 2px;
+    white-space: nowrap;
+  }
+  .btn-text-full {
+    display: none;
+  }
+  .btn-text-short {
+    display: inline;
   }
 
   .hero-box {
@@ -667,5 +702,20 @@ body.modal-open {
   .code-input-display {
     font-size: 1.3rem;
     letter-spacing: 2px;
+  }
+}
+
+/* 针对小屏手机 (如 iPhone SE/Mini)，按钮进一步精炼 */
+@media (max-width: 380px) {
+  .btn-text-short {
+    display: none;
+  }
+  .nav-actions .btn {
+    padding: 5px 7px;
+    min-width: 32px;
+    justify-content: center;
+  }
+  .brand-title {
+    font-size: 0.92rem;
   }
 }
