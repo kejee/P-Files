@@ -425,6 +425,12 @@ input:checked + .slider:before {
   line-height: 1.2;
 }
 
+/* 模态框打开时锁定底层背景滚动 */
+body.modal-open {
+  overflow: hidden !important;
+  touch-action: none;
+}
+
 /* 模态框 Modal */
 .modal-overlay {
   position: fixed;
@@ -438,6 +444,8 @@ input:checked + .slider:before {
   opacity: 0;
   pointer-events: none;
   transition: var(--transition);
+  overscroll-behavior: contain;
+  touch-action: none; /* 阻止遮罩层背景滑动穿透 */
 }
 .modal-overlay.active {
   opacity: 1;
@@ -456,6 +464,8 @@ input:checked + .slider:before {
   box-shadow: var(--shadow-glow);
   transform: translateY(20px);
   transition: var(--transition);
+  overscroll-behavior: contain;
+  touch-action: auto; /* 允许弹窗内部正常交互与滑动 */
 }
 .modal-overlay.active .modal-box {
   transform: translateY(0);

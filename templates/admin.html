@@ -584,11 +584,58 @@
     }
 
     function openModal(id) {
-      document.getElementById(id).classList.add('active');
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.add('active');
+      document.body.classList.add('modal-open');
     }
+
     function closeModal(id) {
-      document.getElementById(id).classList.remove('active');
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('active');
+      // 检查当前是否还有打开的弹窗，若全部关闭则恢复背景滚动
+      if (!document.querySelector('.modal-overlay.active')) {
+        document.body.classList.remove('modal-open');
+      }
     }
+
+    // 全局为所有模态遮罩层绑定：点击背景空白关闭 + 阻止背景触摸穿透 (兼容 iOS / Android / 桌面端)
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        // 点击遮罩空白区域自动关闭
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) {
+            if (overlay.id === 'modal-media-preview' && typeof closeMediaModal === 'function') {
+              closeMediaModal();
+            } else {
+              closeModal(overlay.id);
+            }
+          }
+        });
+
+        // 阻止遮罩层背景 touchmove 事件穿透到底层 body
+        overlay.addEventListener('touchmove', (e) => {
+          if (e.target === overlay) {
+            e.preventDefault();
+          }
+        }, { passive: false });
+      });
+
+      // 支持 ESC 按键一键关闭当前打开的弹窗
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+          const activeModals = document.querySelectorAll('.modal-overlay.active');
+          activeModals.forEach(m => {
+            if (m.id === 'modal-media-preview' && typeof closeMediaModal === 'function') {
+              closeMediaModal();
+            } else {
+              closeModal(m.id);
+            }
+          });
+        }
+      });
+    });
 
     // 绑定策略开关 UI 响应
     function bindSwitch(swId, bodyId, cardId) {
