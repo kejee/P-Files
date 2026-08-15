@@ -35,13 +35,15 @@ async def cleanup_expired_files_loop():
                     
                     # 若开启了彻底销毁(burn_mode == 2)或正常过期策略
                     if f.burn_mode == 2:
-                        file_path = os.path.join(settings.UPLOAD_DIR, f.stored_filename)
-                        if os.path.exists(file_path):
-                            try:
-                                os.remove(file_path)
-                                logger.info(f"彻底销毁物理文件: {file_path}")
-                            except Exception as err:
-                                logger.error(f"删除物理文件失败: {err}")
+                        for fn in [f.stored_filename, f.raw_stored_filename]:
+                            if fn:
+                                file_path = os.path.join(settings.UPLOAD_DIR, fn)
+                                if os.path.exists(file_path):
+                                    try:
+                                        os.remove(file_path)
+                                        logger.info(f"彻底销毁物理文件: {file_path}")
+                                    except Exception as err:
+                                        logger.error(f"删除物理文件失败: {err}")
                                 
                 if expired_files:
                     await session.commit()

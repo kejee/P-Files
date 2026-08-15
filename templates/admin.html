@@ -541,6 +541,11 @@
             </div>
           </div>
 
+          <!-- ZIP 加密文件预览友好提示 -->
+          <div id="share-cfg-zip-hint" style="display: none; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px; font-size: 0.76rem; color: #fde68a; line-height: 1.4;">
+            ⚠️ <strong>提示</strong>：该文件已加密压缩为 ZIP 包，浏览器无法直接在线预览内容，建议务必开启<strong>“允许下载”</strong>通道以便访客下载解压。
+          </div>
+
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
             <div class="form-group" style="margin-bottom: 0;">
               <label class="form-label">🔥 阅后即焚时机</label>
@@ -635,6 +640,85 @@
       <div style="display: flex; gap: 10px; justify-content: center;">
         <button type="button" class="btn btn-secondary" style="flex: 1; padding: 10px 14px; font-size: 0.9rem;" onclick="closeModal('modal-delete-confirm')">取消</button>
         <button type="button" id="btn-confirm-delete-action" class="btn btn-danger" style="flex: 1; padding: 10px 14px; font-size: 0.9rem; font-weight: 600;">确定删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框: 加密压缩配置 (AES-256) -->
+  <div id="modal-compress-config" class="modal-overlay">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 style="font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
+          <span>🗜️</span> 文件加密压缩 (AES-256)
+        </h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-compress-config')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="compress-file-id">
+        
+        <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glass); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 16px;">
+          <div id="compress-target-filename" style="font-weight: 600; font-size: 0.92rem; color: #fff; word-break: break-all;">-</div>
+          <div id="compress-target-filesize" style="font-size: 0.78rem; color: var(--text-dim); margin-top: 3px;">大小: -</div>
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" style="margin-bottom: 0;">🔑 解压密码 (留空表示普通无密压缩)</label>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-secondary btn-xs" style="padding: 2px 8px; font-size: 0.72rem;" onclick="generateCompressPassword()">🎲 随机密码</button>
+              <button type="button" class="btn btn-secondary btn-xs" style="padding: 2px 8px; font-size: 0.72rem;" onclick="toggleCompressPwdVisibility()">👁️ 显示/隐</button>
+            </div>
+          </div>
+          <input type="password" id="compress-password" class="form-control" placeholder="输入压缩加密密码，留空则不设密码" style="font-family: monospace;">
+          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 4px;">
+            采用标准 <strong>Zip AES-256</strong> 工业级加密，主流解压工具（WinRAR / 7-Zip / Bandizip）原生支持。
+          </div>
+        </div>
+
+        <div class="form-group" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 18px;">
+          <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; margin-bottom: 0;">
+            <input type="checkbox" id="compress-keep-raw" checked style="margin-top: 3px; accent-color: var(--primary);">
+            <div>
+              <div style="font-weight: 600; font-size: 0.88rem; color: #c7d2fe;">保留原文件备份 (推荐)</div>
+              <div style="font-size: 0.76rem; color: #94a3b8; margin-top: 2px; line-height: 1.4;">
+                勾选后，后台随时支持<strong>一键关闭加密并无损恢复原文件</strong>；若不勾选，压缩完成后将物理删除未压缩原文件以节省磁盘空间（无法恢复）。
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div id="compress-live-box" style="display: none; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 6px;">
+            <span style="color: #fbbf24; font-weight: 600;">⏳ 正在进行流式加密压缩...</span>
+            <span id="compress-live-percent" style="font-family: monospace; color: #fff; font-weight: 700;">0%</span>
+          </div>
+          <div style="height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; overflow: hidden;">
+            <div id="compress-live-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #6366f1, #a855f7); transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('modal-compress-config')">取消</button>
+          <button type="button" id="btn-submit-compress" class="btn btn-primary" onclick="submitCompressTask()">🚀 开始加密压缩</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 模态框: 恢复原文件确认 -->
+  <div id="modal-uncompress-confirm" class="modal-overlay">
+    <div class="modal-box" style="max-width: 420px; padding: 24px 20px; text-align: center;">
+      <div style="font-size: 2.6rem; line-height: 1; margin-bottom: 12px;">🔓</div>
+      <h3 style="font-size: 1.15rem; color: #fff; margin-bottom: 12px; font-weight: 700;">确认关闭加密并恢复原文件？</h3>
+      <div id="uncompress-confirm-file-info" style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border-glass); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1; word-break: break-all; text-align: left;">
+        <!-- 动态填充 -->
+      </div>
+      <p style="color: #6ee7b7; font-size: 0.8rem; margin-bottom: 22px; line-height: 1.5; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-sm); padding: 8px 10px;">
+        💡 <strong>提示</strong>：系统将从备份恢复原文件名称与格式，并自动彻底抹除旧的加密 ZIP 文件，无需重复解压。
+      </p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button type="button" class="btn btn-secondary" style="flex: 1; padding: 10px 14px; font-size: 0.9rem;" onclick="closeModal('modal-uncompress-confirm')">取消</button>
+        <button type="button" id="btn-confirm-uncompress-action" class="btn btn-primary" style="flex: 1; padding: 10px 14px; font-size: 0.9rem; font-weight: 600;">确定恢复</button>
       </div>
     </div>
   </div>
@@ -927,22 +1011,38 @@
         return;
       }
 
+      // 检查是否有处于 compressing 状态的文件，若有则启动高频进度轮询
+      const hasCompressing = currentFileList.some(f => f.compress_status === 'compressing');
+      if (hasCompressing) {
+        startCompressPolling();
+      }
+
       tbody.innerHTML = currentFileList.map(f => {
         const isPhysicallyDestroyed = (f.burn_mode === 2 && (f.status === 'burned' || f.status === 'revoked'));
+        const isCompressing = (f.compress_status === 'compressing');
 
         let statusBadge = `<span class="badge badge-success">● 分享中</span>`;
-        if (f.status === 'stored') statusBadge = `<span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4);">🔒 私有云盘</span>`;
-        if (f.status === 'expired') statusBadge = `<span class="badge badge-warning">⏳ 已过期</span>`;
-        if (f.status === 'burned') {
+        if (isCompressing) {
+          statusBadge = `<span class="badge" style="background:rgba(245,158,11,0.2); color:#fbbf24; border:1px solid rgba(245,158,11,0.4);"><span class="spin-icon">⏳</span> 压缩中 ${f.compress_progress || 0}%</span>`;
+        } else if (f.status === 'stored') {
+          statusBadge = `<span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4);">🔒 私有云盘</span>`;
+        } else if (f.status === 'expired') {
+          statusBadge = `<span class="badge badge-warning">⏳ 已过期</span>`;
+        } else if (f.status === 'burned') {
           if (f.burn_mode === 2) {
             statusBadge = `<span class="badge badge-danger">💥 已物理销毁</span>`;
           } else {
             statusBadge = `<span class="badge badge-warning">🔥 仅链接失效</span>`;
           }
+        } else if (f.status === 'revoked' || f.status === 'deleted') {
+          statusBadge = `<span class="badge badge-gray">🗑️ 已删除</span>`;
         }
-        if (f.status === 'revoked' || f.status === 'deleted') statusBadge = `<span class="badge badge-gray">🗑️ 已删除</span>`;
 
         let rules = [];
+        if (f.is_encrypted) {
+          rules.push(`<span class="badge-rule" style="color:#d8b4fe; border-color:rgba(168,85,247,0.3);">🗜️ AES-256</span>`);
+        }
+
         if (f.status === 'stored') {
           rules.push(`<span class="badge-rule" style="color:#a5b4fc;">🔒 私有</span>`);
         } else {
@@ -965,7 +1065,7 @@
           }
         }
 
-        if (f.has_password) rules.push(`<span class="badge-rule">🔑 口令</span>`);
+        if (f.has_password) rules.push(`<span class="badge-rule">🔑 提取口令</span>`);
         if (f.max_downloads > 0) rules.push(`<span class="badge-rule">🎯 限${f.max_downloads}次</span>`);
         if (f.allowed_ips) rules.push(`<span class="badge-rule" style="color:#38bdf8;">🛡️ 白名单</span>`);
         if (rules.length === 0 && f.status !== 'stored') rules.push(`<span style="color:var(--text-dim); font-size:0.75rem;">无特殊限制</span>`);
@@ -975,11 +1075,14 @@
         const safeRemark = escapeHtml(f.remark);
         const safeSize = escapeHtml(f.file_size_formatted);
         const safeExpire = escapeHtml(f.expire_at);
+        const safeZipPwd = f.zip_password ? escapeHtml(f.zip_password) : '';
 
-        // 多媒体扩展名识别
+        // 多媒体扩展名识别与加密 ZIP 提示
         const ext = f.original_filename.split('.').pop().toLowerCase();
         let mediaBtn = '';
-        if (['mp4', 'webm', 'mov', 'm4v', 'ogg', 'mkv'].includes(ext)) {
+        if (f.is_encrypted) {
+          mediaBtn = `<button class="btn btn-secondary btn-sm" style="opacity:0.4; cursor:not-allowed;" onclick="showToast('🗜️ 该文件已加密压缩为ZIP，不支持在线直接预览，请下载解压后查看', true)" title="ZIP包不支持在线预览">🎬 预览</button>`;
+        } else if (['mp4', 'webm', 'mov', 'm4v', 'ogg', 'mkv'].includes(ext)) {
           if (isPhysicallyDestroyed) {
             mediaBtn = `<button class="btn btn-secondary btn-sm" style="opacity:0.4; cursor:not-allowed;" onclick="showToast('⚠️ 该文件已执行彻底物理销毁，源文件已从服务器磁盘抹除，无法播放', true)" title="源文件已物理销毁">🎬 播放</button>`;
           } else {
@@ -1016,7 +1119,44 @@
           `;
         }
 
+        const jsSafeName = safeName.replace(/'/g, "\\'");
+
+        // 加密压缩 / 解密还原按钮
+        let compressActionBtn = '';
+        if (isPhysicallyDestroyed) {
+          compressActionBtn = '';
+        } else if (isCompressing) {
+          compressActionBtn = `<button class="btn btn-secondary btn-sm" style="opacity:0.6; cursor:not-allowed;" disabled title="正在流式压缩中">⏳ 处理中</button>`;
+        } else if (f.is_encrypted) {
+          if (f.can_uncompress) {
+            compressActionBtn = `<button class="btn btn-secondary btn-sm" style="color:#6ee7b7; border-color:rgba(110,231,183,0.4);" onclick="confirmUncompress(${f.id}, '${jsSafeName}')" title="关闭加密并无损恢复原文件">🔓 恢复</button>`;
+          } else {
+            compressActionBtn = `<span style="font-size:0.72rem; color:var(--text-dim); padding:2px 4px;" title="加密时未选择保留备份，无法一键恢复">不可恢复</span>`;
+          }
+        } else {
+          compressActionBtn = `<button class="btn btn-secondary btn-sm" style="color:#c084fc; border-color:rgba(192,132,252,0.4);" onclick="openCompressModal(${f.id}, '${jsSafeName}', '${safeSize}')" title="将此文件使用 AES-256 加密压缩为 ZIP">🗜️ 加密</button>`;
+        }
+
         const smartFileNameHtml = formatSmartFilenameHtml(f.original_filename, 22);
+
+        // 密码与备注明细
+        let extraInfoHtml = '';
+        if (f.is_encrypted) {
+          if (safeZipPwd) {
+            extraInfoHtml += `
+              <div style="font-size:0.76rem; color:#cbd5e1; margin-top:3px; display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span>🔑 压缩密码:</span>
+                <code style="font-family:monospace; background:rgba(99,102,241,0.2); color:#c7d2fe; padding:1px 6px; border-radius:3px; font-weight:600;">${safeZipPwd}</code>
+                <button class="btn btn-secondary btn-xs" style="padding:1px 5px; font-size:0.72rem;" onclick="copyText('${safeZipPwd}', '压缩密码已复制')" title="复制解压密码">📋 复制</button>
+              </div>
+            `;
+          } else {
+            extraInfoHtml += `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:3px;">🗜️ ZIP压缩包 (无密码)</div>`;
+          }
+        }
+        if (f.remark) {
+          extraInfoHtml += `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:3px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safeRemark}">📝 ${safeRemark}</div>`;
+        }
 
         return `
           <tr>
@@ -1027,7 +1167,7 @@
                 </span>
                 ${smartFileNameHtml}
               </div>
-              ${f.remark ? `<div style="font-size:0.75rem; color:var(--text-dim); margin-top:3px; max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safeRemark}">📝 ${safeRemark}</div>` : ''}
+              ${extraInfoHtml}
             </td>
             <td style="font-family:monospace;">${safeSize}</td>
             <td><div style="display:flex; flex-wrap:nowrap; gap:4px;">${rules.join('')}</div></td>
@@ -1041,9 +1181,12 @@
               <div style="display:inline-flex; gap:6px; align-items:center; justify-content:flex-end;">
                 ${mediaBtn}
                 ${shareActionBtns}
+                ${compressActionBtn}
                 <button class="btn btn-secondary btn-sm" onclick="viewLogs(${f.id}, '${safeCode}')" title="查看访问IP与地理位置明细">📊 日志</button>
                 <button class="btn btn-danger btn-sm" onclick="confirmDeleteFile(${f.id}, '${safeName.replace(/'/g, "\\'")}', '${safeCode}')" title="删除记录">🗑️</button>
               </div>
+            </td>
+          </tr>
         `;
       }).join('');
     }
@@ -1669,14 +1812,18 @@
         btnSubmit.innerText = '🚀 立即开启分享';
       }
 
+      // ZIP 预览兼容提示
+      const zipHintEl = document.getElementById('share-cfg-zip-hint');
+      if (zipHintEl) {
+        zipHintEl.style.display = f.is_encrypted ? 'block' : 'none';
+      }
+
       openModal('modal-share-config');
     }
 
     // 快捷关闭分享（转私有云盘模式）
     async function quickCloseShare(fileId, fileName) {
-      if (!confirm(`确定要关闭文件【${fileName}】的公开分享吗？
-
-关闭后文件将转入“私有云盘”模式，公网提取链接将立即关闭失效，可在后台随时再次发起分享。`)) {
+      if (!confirm(`确定要关闭文件【${fileName}】的公开分享吗？\n\n关闭后文件将转入“私有云盘”模式，公网提取链接将立即关闭失效，可在后台随时再次发起分享。`)) {
         return;
       }
       try {
@@ -1766,6 +1913,180 @@
         showToast('网络请求失败', true);
       }
     });
+
+    // ---------------- 加密压缩与解密恢复交互逻辑 ----------------
+    
+    // 打开加密压缩弹窗
+    function openCompressModal(id, filename, size) {
+      document.getElementById('compress-file-id').value = id;
+      document.getElementById('compress-target-filename').innerText = filename;
+      document.getElementById('compress-target-filesize').innerText = `大小: ${size}`;
+      document.getElementById('compress-password').value = '';
+      document.getElementById('compress-password').type = 'password';
+      document.getElementById('compress-keep-raw').checked = true;
+      document.getElementById('compress-live-box').style.display = 'none';
+      document.getElementById('btn-submit-compress').disabled = false;
+      document.getElementById('btn-submit-compress').innerText = '🚀 开始加密压缩';
+      openModal('modal-compress-config');
+    }
+
+    // 随机生成高强度压缩密码
+    function generateCompressPassword(len = 16) {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*()_+';
+      let pwd = '';
+      for (let i = 0; i < len; i++) {
+        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      const pwdInput = document.getElementById('compress-password');
+      pwdInput.value = pwd;
+      pwdInput.type = 'text'; // 生成后直接明文显示
+      showToast('已生成随机高强度解压密码！');
+    }
+
+    // 切换密码显隐
+    function toggleCompressPwdVisibility() {
+      const pwdInput = document.getElementById('compress-password');
+      pwdInput.type = (pwdInput.type === 'password') ? 'text' : 'password';
+    }
+
+    // 提交压缩任务
+    async function submitCompressTask() {
+      const fileId = document.getElementById('compress-file-id').value;
+      if (!fileId) return;
+
+      const password = document.getElementById('compress-password').value.trim();
+      const keepRaw = document.getElementById('compress-keep-raw').checked;
+
+      const btn = document.getElementById('btn-submit-compress');
+      btn.disabled = true;
+      btn.innerText = '正在启动任务...';
+
+      const formData = new FormData();
+      if (password) formData.append('password', password);
+      formData.append('keep_raw', keepRaw);
+
+      try {
+        const res = await fetch(`/api/admin/files/${fileId}/compress`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (res.status === 200) {
+          showToast('🗜️ 已启动流式加密压缩任务！');
+          closeModal('modal-compress-config');
+          // 立即刷新列表并启动轮询
+          loadFiles();
+          startCompressPolling();
+        } else {
+          showToast(data.detail || '启动压缩失败', true);
+          btn.disabled = false;
+          btn.innerText = '🚀 开始加密压缩';
+        }
+      } catch (err) {
+        showToast('网络请求失败', true);
+        btn.disabled = false;
+        btn.innerText = '🚀 开始加密压缩';
+      }
+    }
+
+    // 压缩任务轮询定时器
+    let compressPollTimer = null;
+    function startCompressPolling() {
+      if (compressPollTimer) return;
+      compressPollTimer = setInterval(async () => {
+        const compressingFiles = currentFileList.filter(f => f.compress_status === 'compressing');
+        if (!compressingFiles.length) {
+          clearInterval(compressPollTimer);
+          compressPollTimer = null;
+          return;
+        }
+
+        let anyChanged = false;
+        for (const file of compressingFiles) {
+          try {
+            const res = await fetch(`/api/admin/files/${file.id}/compress-progress`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const resData = await res.json();
+            if (res.status === 200 && resData.data) {
+              const status = resData.data.status;
+              const progress = resData.data.progress;
+              if (status !== 'compressing' || progress !== file.compress_progress) {
+                anyChanged = true;
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (anyChanged) {
+          loadFiles();
+        }
+      }, 1500);
+    }
+
+    // 待恢复文件暂存 ID
+    let pendingUncompressId = null;
+
+    // 唤起恢复原文件确认
+    function confirmUncompress(id, filename) {
+      pendingUncompressId = id;
+      const infoEl = document.getElementById('uncompress-confirm-file-info');
+      if (infoEl) {
+        infoEl.innerHTML = `
+          <div style="font-weight: 600; color: #fff; line-height: 1.4; word-break: break-all;">${filename}</div>
+          <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 4px;">将自动销毁加密 ZIP 并恢复为未加密原始格式</div>
+        `;
+      }
+      openModal('modal-uncompress-confirm');
+    }
+
+    // 确认执行恢复原文件
+    document.getElementById('btn-confirm-uncompress-action').addEventListener('click', async () => {
+      if (!pendingUncompressId) return;
+      const btn = document.getElementById('btn-confirm-uncompress-action');
+      const origText = btn.innerText;
+      btn.innerText = '正在还原...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/admin/files/${pendingUncompressId}/uncompress`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        closeModal('modal-uncompress-confirm');
+        if (res.status === 200) {
+          showToast('🔓 已成功关闭加密并无损恢复原文件！');
+          loadDashboard();
+        } else {
+          showToast(data.detail || '恢复原文件失败', true);
+        }
+      } catch (err) {
+        closeModal('modal-uncompress-confirm');
+        showToast('网络请求失败', true);
+      } finally {
+        btn.innerText = origText;
+        btn.disabled = false;
+        pendingUncompressId = null;
+      }
+    });
+
+    // 复制任意文本辅助函数
+    async function copyText(text, successMsg = '已复制到剪贴板') {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(`📋 ${successMsg}`);
+      } catch (err) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showToast(`📋 ${successMsg}`);
+      }
+    }
 
     // 待删除文件暂存 ID
     let pendingDeleteId = null;

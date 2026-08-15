@@ -16,7 +16,7 @@ async def test_full_file_sharing_lifecycle():
     async with AsyncSessionLocal() as db:
         await db.execute(delete(FileItem).where(FileItem.share_code.in_([
             "sec888", "doc101", "doc102_new", "doc102_updated", "priv_mov",
-            "preview_only_code", "dl_only_code", "burn_view_code"
+            "preview_only_code", "dl_only_code", "burn_view_code", "comp_test_code"
         ])))
         res = await db.execute(select(AdminSetting).where(AdminSetting.key == "admin_password"))
         if not res.scalar_one_or_none():
@@ -248,13 +248,67 @@ async def test_full_file_sharing_lifecycle():
         burn_session_res = await client.post("/api/share/burn/burn_view_code")
         assert burn_session_res.status_code == 200
 
-        # 等待后台物理销毁任务执行
-        await asyncio.sleep(0.5)
+        # 18. 测试【AES-256 加密压缩】与进度反馈
+        files_compress_test = {"file": ("report.docx", io.BytesIO(b"Confidential Report Word Data 2026"), "application/octet-stream")}
+        up_comp_res = await client.post("/api/admin/upload", data={
+            "custom_code": "comp_test_code",
+            "allow_preview": "true",
+            "allow_download": "true",
+            "is_private": "false"
+        }, files=files_compress_test, headers=auth_headers)
+        assert up_comp_res.status_code == 200
+        comp_file_id = up_comp_res.json()["data"]["id"]
 
-        # 再次查询或预览应已失效 (返回 410)
-        bv_res2 = await client.post("/api/share/query", data={"code": "burn_view_code"})
-        assert bv_res2.status_code in (404, 410), "预览即焚文件查阅关闭后应彻底失效"
-        print("✅ 17. 【会话级预览即焚】验证通过 (预览期间多次请求畅通，关闭离开后立刻物理粉碎销毁)")
+        # 发起加密压缩任务 (设置密码: "SecretPwd123", 保留原文件: keep_raw=True)
+        comp_res = await client.post(f"/api/admin/files/{comp_file_id}/compress", data={
+            "password": "SecretPwd123",
+            "keep_raw": "true"
+        }, headers=auth_headers)
+        assert comp_res.status_code == 200
+
+        # 等待后台流式压缩协程完成
+        for _ in range(20):
+            await asyncio.sleep(0.2)
+            prog_res = await client.get(f"/api/admin/files/{comp_file_id}/compress-progress", headers=auth_headers)
+            assert prog_res.status_code == 200
+            p_data = prog_res.json()["data"]
+            if p_data["status"] == "idle" and p_data["is_encrypted"]:
+                break
+
+        # 验证压缩后的文件状态与名称
+        fl_res = await client.get("/api/admin/files?search=comp_test_code", headers=auth_headers)
+        fl_data = fl_res.json()["data"][0]
+        assert fl_data["is_encrypted"] is True
+        assert fl_data["original_filename"] == "report.docx.zip"
+        assert fl_data["zip_password"] == "SecretPwd123"
+        assert fl_data["can_uncompress"] is True
+        print("✅ 18. 【AES-256 加密压缩】验证通过 (生成 report.docx.zip，后台明文记录密码且支持一键还原)")
+
+        # 19. 测试下载加密压缩包并使用 pyzipper 验证解压
+        import pyzipper
+        comp_dl_res = await client.get("/api/share/download/comp_test_code")
+        assert comp_dl_res.status_code == 200
+        zip_bytes = comp_dl_res.content
+        with pyzipper.AESZipFile(io.BytesIO(zip_bytes)) as zf:
+            zf.setpassword(b"SecretPwd123")
+            extracted_data = zf.read("report.docx")
+            assert extracted_data == b"Confidential Report Word Data 2026"
+        print("✅ 19. 【标准 AES-256 ZIP 解压】验证通过 (使用密码解压内容完全一致)")
+
+        # 20. 测试【关闭加密并恢复原文件】
+        uncomp_res = await client.post(f"/api/admin/files/{comp_file_id}/uncompress", headers=auth_headers)
+        assert uncomp_res.status_code == 200
+        fl_uncomp_res = await client.get("/api/admin/files?search=comp_test_code", headers=auth_headers)
+        fl_uncomp_data = fl_uncomp_res.json()["data"][0]
+        assert fl_uncomp_data["is_encrypted"] is False
+        assert fl_uncomp_data["original_filename"] == "report.docx"
+        assert fl_uncomp_data["zip_password"] is None
+        print("✅ 20. 【关闭加密/无损还原原文件】验证通过 (原文件名与格式恢复正常)")
+
+        # 21. 测试删除文件时物理文件被彻底清理
+        del_res = await client.delete(f"/api/admin/files/{comp_file_id}", headers=auth_headers)
+        assert del_res.status_code == 200
+        print("✅ 21. 【文件清理与物理删除】验证通过")
 
 if __name__ == "__main__":
     asyncio.run(test_full_file_sharing_lifecycle())

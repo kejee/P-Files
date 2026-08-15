@@ -40,6 +40,19 @@ class FileItem(Base):
     view_count = Column(Integer, default=0)                 # 查看次数
     download_count = Column(Integer, default=0)             # 下载次数
     
+    # 加密压缩特性支持 (AES-256 Zip / 支持无损解密恢复)
+    is_encrypted = Column(Boolean, default=False)           # 是否处于加密压缩状态
+    zip_password = Column(String(255), nullable=True)       # 压缩密码 (后台直接可见/复制, None/空表示普通无密压缩)
+    compress_status = Column(String(32), default="idle")    # idle | compressing | failed
+    compress_progress = Column(Integer, default=0)          # 压缩进度 0-100
+    compress_error = Column(Text, nullable=True)            # 压缩失败报错信息
+    
+    # 原始文件备份 (若选择保留原文件, 用于关闭加密时快速无损恢复)
+    raw_stored_filename = Column(String(255), nullable=True)# 原始物理文件名
+    raw_file_size = Column(Integer, nullable=True)          # 原始字节大小
+    raw_original_filename = Column(String(255), nullable=True) # 原始文件名称 (带原始后缀)
+    raw_content_type = Column(String(128), nullable=True)   # 原始 MIME 类型
+    
     # 状态: 'stored' (私有云盘), 'active' (分享中), 'expired' (已过期), 'burned' (已即焚), 'revoked' (已取消分享), 'deleted' (彻底删除)
     status = Column(String(32), default="stored", index=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -108,5 +121,26 @@ async def init_db():
                     await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN allow_download BOOLEAN DEFAULT 0;")
                 if "burn_trigger" not in columns:
                     await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN burn_trigger VARCHAR(32) DEFAULT 'download';")
+                
+                # 加密压缩与备份恢复字段
+                if "is_encrypted" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN is_encrypted BOOLEAN DEFAULT 0;")
+                if "zip_password" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN zip_password VARCHAR(255);")
+                if "compress_status" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN compress_status VARCHAR(32) DEFAULT 'idle';")
+                if "compress_progress" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN compress_progress INTEGER DEFAULT 0;")
+                if "compress_error" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN compress_error TEXT;")
+                if "raw_stored_filename" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN raw_stored_filename VARCHAR(255);")
+                if "raw_file_size" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN raw_file_size INTEGER;")
+                if "raw_original_filename" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN raw_original_filename VARCHAR(255);")
+                if "raw_content_type" not in columns:
+                    await conn.exec_driver_sql("ALTER TABLE files ADD COLUMN raw_content_type VARCHAR(128);")
             except Exception:
                 pass
+

@@ -268,6 +268,8 @@
         if (res.status === 200) {
           currentFileInfo = data.data;
           renderFileInfo(data.data);
+        } else if (res.status === 423) {
+          showToast(data.detail || '该文件正在进行加密压缩处理，分享暂不可用，请稍候再试', true);
         } else if (res.status === 403) {
           showToast(data.detail || '当前 IP 无权访问此分享', true);
         } else {
@@ -336,8 +338,35 @@
         boxPassword.style.display = 'none';
       }
 
-      // 权限模式与按钮状态
-      if (info.allow_preview && !info.allow_download) {
+      // 权限模式与按钮状态 (针对 ZIP 压缩包或加密文件强制禁用在线预览，引导下载)
+      const isZipArchive = Boolean(info.is_encrypted) || ext === '.zip' || ['.rar', '.7z', '.tar', '.gz', '.bz2', '.xz'].includes(ext);
+
+      if (isZipArchive) {
+        // 压缩包/加密文件无法在线直接播放预览
+        if (info.is_encrypted) {
+          badgePerm.innerText = '🗜️ AES-256 加密压缩包';
+          badgePerm.style.background = 'rgba(168, 85, 247, 0.2)';
+          badgePerm.style.color = '#d8b4fe';
+          badgePerm.style.display = 'inline-flex';
+        } else {
+          badgePerm.innerText = '📦 压缩归档包';
+          badgePerm.style.background = 'rgba(99, 102, 241, 0.2)';
+          badgePerm.style.color = '#a5b4fc';
+          badgePerm.style.display = 'inline-flex';
+        }
+
+        btnPreview.style.display = 'none';
+
+        if (info.allow_download) {
+          btnDownload.style.display = 'block';
+          viewOnlyNotice.style.display = 'none';
+        } else {
+          // 若仅开启了预览未开启下载
+          btnDownload.style.display = 'none';
+          viewOnlyNotice.innerHTML = '⚠️ <strong>提示</strong>：该文件已打包为压缩文件，不支持在线直接查阅，需开启下载权限方可获取。';
+          viewOnlyNotice.style.display = 'block';
+        }
+      } else if (info.allow_preview && !info.allow_download) {
         badgePerm.innerText = '👁️ 仅在线查阅';
         badgePerm.style.background = 'rgba(56, 189, 248, 0.2)';
         badgePerm.style.color = '#38bdf8';
@@ -422,6 +451,12 @@
     // 在线安全查阅
     async function handlePreview() {
       if (!currentFileInfo) return;
+
+      const isZip = Boolean(currentFileInfo.is_encrypted) || (currentFileInfo.filename && currentFileInfo.filename.toLowerCase().endsWith('.zip'));
+      if (isZip) {
+        showToast('🗜️ 该文件已加密压缩为 ZIP 包，不支持在线直接查阅/播放，请点击下载', true);
+        return;
+      }
 
       btnPreview.disabled = true;
       btnPreview.innerText = '正在载入预览...';

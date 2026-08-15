@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, desc, func, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import pyzipper
 from config import settings
 from database import init_db, get_db, FileItem, AccessLog, AdminSetting, AsyncSessionLocal
 from ip_locator import IPLocator
@@ -30,6 +31,176 @@ from security import (
 from cleanup import cleanup_expired_files_loop
 
 from contextlib import asynccontextmanager
+
+# 存储正在进行的压缩进度内存映射: file_id -> {"progress": int, "status": str, "error": Optional[str]}
+compress_progress_map = {}
+
+def remove_physical_file_items(file_item: FileItem):
+    """同时安全彻底物理删除当前文件及原始备份文件(若有)"""
+    for fn in [file_item.stored_filename, getattr(file_item, "raw_stored_filename", None)]:
+        if fn:
+            file_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, fn))
+            if file_path.startswith(os.path.abspath(settings.UPLOAD_DIR)) and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception:
+                    pass
+
+def sync_compress_file_aes256(
+    file_id: int,
+    source_path: str,
+    target_zip_path: str,
+    zip_entry_name: str,
+    password: Optional[str] = None,
+    chunk_size: int = 1024 * 1024
+):
+    """
+    同步流式压缩为标准 AES-256 ZIP，实时更新 compress_progress_map (0-100)
+    若 password 为空则生成标准无密码 ZIP
+    """
+    try:
+        compress_progress_map[file_id] = {"progress": 0, "status": "compressing", "error": None}
+        total_size = os.path.getsize(source_path)
+        if total_size == 0:
+            total_size = 1
+
+        pwd_bytes = password.encode('utf-8') if (password and password.strip()) else None
+
+        if pwd_bytes:
+            zip_file = pyzipper.AESZipFile(
+                target_zip_path,
+                'w',
+                compression=pyzipper.ZIP_DEFLATED,
+                encryption=pyzipper.WZ_AES
+            )
+            zip_file.setpassword(pwd_bytes)
+        else:
+            zip_file = pyzipper.AESZipFile(
+                target_zip_path,
+                'w',
+                compression=pyzipper.ZIP_DEFLATED
+            )
+
+        with zip_file:
+            with open(source_path, 'rb') as src, zip_file.open(zip_entry_name, 'w') as dest:
+                bytes_written = 0
+                while True:
+                    chunk = src.read(chunk_size)
+                    if not chunk:
+                        break
+                    dest.write(chunk)
+                    bytes_written += len(chunk)
+                    progress = int(min(99, (bytes_written / total_size) * 100))
+                    compress_progress_map[file_id]["progress"] = progress
+
+        compress_progress_map[file_id] = {"progress": 100, "status": "completed", "error": None}
+        return True, None
+    except Exception as e:
+        compress_progress_map[file_id] = {"progress": 0, "status": "failed", "error": str(e)}
+        if os.path.exists(target_zip_path):
+            try:
+                os.remove(target_zip_path)
+            except Exception:
+                pass
+        return False, str(e)
+
+async def async_compress_worker(file_id: int, password: Optional[str], keep_raw: bool):
+    """
+    后台异步压缩协程：执行流式压缩、进度反馈与数据持久化
+    """
+    async with AsyncSessionLocal() as session:
+        res = await session.execute(select(FileItem).where(FileItem.id == file_id))
+        f = res.scalar_one_or_none()
+        if not f:
+            return
+
+        f.compress_status = "compressing"
+        f.compress_progress = 0
+        f.compress_error = None
+        await session.commit()
+
+        source_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.stored_filename))
+        if not os.path.exists(source_path):
+            f.compress_status = "failed"
+            f.compress_error = "源文件在磁盘上不存在"
+            await session.commit()
+            return
+
+        old_stored_filename = f.stored_filename
+        old_original_filename = f.original_filename
+        old_file_size = f.file_size
+        old_content_type = f.content_type
+
+        # 命名规则: 保留原后缀加 .zip (例如 photo.png.zip)
+        new_original_filename = f"{old_original_filename}.zip"
+        zip_storage_filename = f"{uuid.uuid4().hex}.zip"
+        temp_zip_filename = f"temp_{zip_storage_filename}"
+        temp_zip_path = os.path.join(settings.UPLOAD_DIR, temp_zip_filename)
+        final_zip_path = os.path.join(settings.UPLOAD_DIR, zip_storage_filename)
+
+        clean_pwd = password.strip() if (password and password.strip()) else None
+
+        # 异步线程池执行压缩，不阻塞主事件循环
+        success, err = await asyncio.to_thread(
+            sync_compress_file_aes256,
+            file_id,
+            source_path,
+            temp_zip_path,
+            old_original_filename, # zip 内部文件名
+            clean_pwd
+        )
+
+        # 压缩完成，重新加载记录并原子更新
+        res = await session.execute(select(FileItem).where(FileItem.id == file_id))
+        f = res.scalar_one_or_none()
+        if not f:
+            if os.path.exists(temp_zip_path):
+                try:
+                    os.remove(temp_zip_path)
+                except Exception:
+                    pass
+            return
+
+        if not success:
+            f.compress_status = "failed"
+            f.compress_error = err or "压缩失败"
+            await session.commit()
+            return
+
+        # 重命名临时 zip 为正式存储文件
+        if os.path.exists(temp_zip_path):
+            os.rename(temp_zip_path, final_zip_path)
+
+        new_file_size = os.path.getsize(final_zip_path)
+
+        f.stored_filename = zip_storage_filename
+        f.original_filename = new_original_filename
+        f.file_size = new_file_size
+        f.content_type = "application/zip"
+        f.is_encrypted = True
+        f.zip_password = clean_pwd
+        f.compress_status = "idle"
+        f.compress_progress = 100
+        f.compress_error = None
+
+        if keep_raw:
+            f.raw_stored_filename = old_stored_filename
+            f.raw_file_size = old_file_size
+            f.raw_original_filename = old_original_filename
+            f.raw_content_type = old_content_type
+        else:
+            f.raw_stored_filename = None
+            f.raw_file_size = None
+            f.raw_original_filename = None
+            f.raw_content_type = None
+            # 若选择不保留原文件，则彻底删除未压缩原文件
+            if os.path.exists(source_path):
+                try:
+                    os.remove(source_path)
+                except Exception:
+                    pass
+
+        await session.commit()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -409,6 +580,9 @@ async def admin_preview_file(
     if not f:
         raise HTTPException(status_code=404, detail="文件不存在")
 
+    if f.is_encrypted:
+        raise HTTPException(status_code=400, detail="该文件已加密压缩为ZIP包，不支持直接在线播放或预览，请下载解压后查看")
+
     file_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.stored_filename))
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="底层物理文件已被销毁或不存在")
@@ -481,7 +655,14 @@ async def admin_get_files(
             "allowed_ips": f.allowed_ips,
             "remark": f.remark,
             "status": display_status,
-            "created_at": f.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            "created_at": f.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            "is_encrypted": bool(f.is_encrypted),
+            "zip_password": f.zip_password,
+            "compress_status": f.compress_status or "idle",
+            "compress_progress": f.compress_progress or 0,
+            "compress_error": f.compress_error,
+            "can_uncompress": bool(f.is_encrypted and f.raw_stored_filename),
+            "has_raw_backup": bool(f.raw_stored_filename)
         })
 
     return {"code": 200, "data": file_list}
@@ -690,6 +871,137 @@ async def admin_reshare_file(
         db=db
     )
 
+@app.post("/api/admin/files/{file_id}/compress")
+async def admin_compress_file(
+    file_id: int,
+    password: Optional[str] = Form(None),
+    keep_raw: bool = Form(True),
+    admin: str = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    管理员触发 AES-256 加密压缩任务
+    - password: 密码 (可为空)
+    - keep_raw: 是否保留原文件备份 (默认保留, 支持后续一键无损还原)
+    """
+    res = await db.execute(select(FileItem).where(FileItem.id == file_id))
+    f = res.scalar_one_or_none()
+    if not f:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    if f.compress_status == "compressing":
+        raise HTTPException(status_code=400, detail="该文件已在压缩队列处理中，请勿重复触发")
+
+    file_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.stored_filename))
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="源物理文件不存在")
+
+    # 标记状态为 compressing
+    f.compress_status = "compressing"
+    f.compress_progress = 0
+    f.compress_error = None
+    await db.commit()
+
+    # 启动后台异步任务
+    asyncio.create_task(async_compress_worker(file_id, password, keep_raw))
+
+    return {
+        "code": 200,
+        "message": "加密压缩任务已启动",
+        "data": {
+            "file_id": file_id,
+            "status": "compressing",
+            "keep_raw": keep_raw
+        }
+    }
+
+@app.get("/api/admin/files/{file_id}/compress-progress")
+async def admin_get_compress_progress(
+    file_id: int,
+    admin: str = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """获取压缩任务实时进度"""
+    # 优先从内存映射获取高频进度
+    mem = compress_progress_map.get(file_id)
+    if mem and mem.get("status") == "compressing":
+        return {
+            "code": 200,
+            "data": {
+                "file_id": file_id,
+                "status": "compressing",
+                "progress": mem.get("progress", 0),
+                "error": None
+            }
+        }
+
+    res = await db.execute(select(FileItem).where(FileItem.id == file_id))
+    f = res.scalar_one_or_none()
+    if not f:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    return {
+        "code": 200,
+        "data": {
+            "file_id": file_id,
+            "status": f.compress_status or "idle",
+            "progress": f.compress_progress or 0,
+            "error": f.compress_error,
+            "is_encrypted": bool(f.is_encrypted),
+            "can_uncompress": bool(f.is_encrypted and f.raw_stored_filename)
+        }
+    }
+
+@app.post("/api/admin/files/{file_id}/uncompress")
+async def admin_uncompress_file(
+    file_id: int,
+    admin: str = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    关闭加密 / 恢复原文件
+    - 切换回原始物理文件
+    - 物理删除旧的加密 zip 文件
+    - 清除加密密码与状态标记
+    """
+    res = await db.execute(select(FileItem).where(FileItem.id == file_id))
+    f = res.scalar_one_or_none()
+    if not f:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    if not f.is_encrypted or not f.raw_stored_filename:
+        raise HTTPException(status_code=400, detail="该文件未开启加密或未保留原始备份，无法恢复")
+
+    raw_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.raw_stored_filename))
+    if not os.path.exists(raw_path):
+        raise HTTPException(status_code=404, detail="底层原始物理文件已丢失，无法恢复")
+
+    # 删除当前的加密 zip 文件
+    zip_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.stored_filename))
+    if os.path.exists(zip_path) and zip_path != raw_path:
+        try:
+            os.remove(zip_path)
+        except Exception:
+            pass
+
+    # 恢复原文件属性
+    f.stored_filename = f.raw_stored_filename
+    f.file_size = f.raw_file_size or os.path.getsize(raw_path)
+    f.original_filename = f.raw_original_filename or f.original_filename.replace('.zip', '')
+    f.content_type = f.raw_content_type or "application/octet-stream"
+    f.is_encrypted = False
+    f.zip_password = None
+    f.compress_status = "idle"
+    f.compress_progress = 0
+    f.compress_error = None
+    f.raw_stored_filename = None
+    f.raw_file_size = None
+    f.raw_original_filename = None
+    f.raw_content_type = None
+
+    await db.commit()
+    return {"code": 200, "message": "已成功关闭加密并无损恢复原文件"}
+
 @app.delete("/api/admin/files/{file_id}")
 async def admin_delete_file(
     file_id: int,
@@ -697,19 +1009,14 @@ async def admin_delete_file(
     admin: str = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """管理员手动删除文件"""
+    """管理员手动删除文件 (同时彻底物理清理当前存储文件和原备份文件)"""
     res = await db.execute(select(FileItem).where(FileItem.id == file_id))
     f = res.scalar_one_or_none()
     if not f:
         raise HTTPException(status_code=404, detail="文件不存在")
 
     if force_destroy_file:
-        file_path = os.path.join(settings.UPLOAD_DIR, f.stored_filename)
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                pass
+        remove_physical_file_items(f)
         await db.delete(f)
     else:
         f.status = "revoked"
@@ -773,7 +1080,14 @@ async def share_query_file_info(
         await db.commit()
         raise HTTPException(status_code=404, detail="提取码无效或文件不存在")
 
-    # 1. 检查 IP 白名单
+    # 1. 检查是否正在进行加密压缩处理
+    if f.compress_status == "compressing":
+        raise HTTPException(
+            status_code=423,
+            detail="该文件正在进行加密压缩处理，分享暂不可用，请稍候再试"
+        )
+
+    # 2. 检查 IP 白名单
     if not is_ip_allowed(client_ip, f.allowed_ips):
         db.add(AccessLog(
             file_id=f.id,
@@ -789,7 +1103,7 @@ async def share_query_file_info(
             detail=f"访问被拒绝：当前 IP ({client_ip} - {location}) 不在允许的白名单范围内"
         )
 
-    # 2. 检查状态与过期时间
+    # 3. 检查状态与过期时间
     now = datetime.datetime.utcnow()
     if f.status != "active" or (f.expire_at and f.expire_at <= now):
         db.add(AccessLog(
@@ -803,11 +1117,11 @@ async def share_query_file_info(
         await db.commit()
         raise HTTPException(status_code=410, detail="该分享已过期或已失效")
 
-    # 3. 检查最大下载次数限制
+    # 4. 检查最大下载次数限制
     if f.max_downloads > 0 and f.download_count >= f.max_downloads:
         raise HTTPException(status_code=410, detail="该分享已达到最大允许下载次数")
 
-    # 4. 记录查看（view）日志与计数递增
+    # 5. 记录查看（view）日志与计数递增
     f.view_count += 1
     db.add(AccessLog(
         file_id=f.id,
@@ -835,6 +1149,7 @@ async def share_query_file_info(
             "download_count": f.download_count,
             "max_downloads": f.max_downloads,
             "remark": f.remark,
+            "is_encrypted": bool(f.is_encrypted),
             "client_ip": client_ip,
             "client_location": location
         }
@@ -867,6 +1182,9 @@ async def share_verify_password(
 
     if not f or f.status != "active":
         raise HTTPException(status_code=404, detail="文件不存在或已失效")
+
+    if f.compress_status == "compressing":
+        raise HTTPException(status_code=423, detail="该文件正在进行加密压缩处理，分享暂不可用，请稍候再试")
 
     # 验证口令
     if f.has_password and not verify_password(password, f.password_hash):
@@ -916,6 +1234,9 @@ async def share_preview_file(
     if not f:
         raise HTTPException(status_code=404, detail="文件不存在")
 
+    if f.compress_status == "compressing":
+        raise HTTPException(status_code=423, detail="该文件正在进行加密压缩处理，分享暂不可用，请稍候再试")
+
     # 1. IP 白名单校验
     if not is_ip_allowed(client_ip, f.allowed_ips):
         db.add(AccessLog(
@@ -937,6 +1258,13 @@ async def share_preview_file(
     # 3. 权限校验：是否开启了在线预览
     if not f.allow_preview:
         raise HTTPException(status_code=403, detail="该文件未开启在线预览权限")
+
+    # 3.1 格式拦截：ZIP 压缩包及加密文件无法在线直接播放预览
+    if f.is_encrypted or f.original_filename.lower().endswith(('.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz')):
+        raise HTTPException(
+            status_code=400,
+            detail="该文件为压缩归档包（或已安全加密），不支持在线直接播放查阅，请通过下载方式获取"
+        )
 
     # 4. 口令验证
     if f.has_password:
@@ -964,7 +1292,7 @@ async def share_preview_file(
 
     # 6. 处理【预览即焚】保底定时任务 (确保流媒体传输会话期间不中断，10分钟保底清理)
     if f.burn_mode > 0 and (f.burn_trigger in ["view", "any"]):
-        async def backup_auto_burn_job(target_id: int, path: str, mode: int):
+        async def backup_auto_burn_job(target_id: int, stored_name: str, raw_name: Optional[str], mode: int):
             try:
                 await asyncio.sleep(600) # 10 分钟后保底清理
                 async with AsyncSessionLocal() as session:
@@ -973,13 +1301,20 @@ async def share_preview_file(
                     if item_b and item_b.status == "active":
                         item_b.status = "burned"
                         await session.commit()
-                if mode == 2 and os.path.exists(path):
-                    os.remove(path)
+                if mode == 2:
+                    for fn in [stored_name, raw_name]:
+                        if fn:
+                            p = os.path.join(settings.UPLOAD_DIR, fn)
+                            if os.path.exists(p):
+                                try:
+                                    os.remove(p)
+                                except Exception:
+                                    pass
             except Exception:
                 pass
         
         # 异步启动保底任务
-        asyncio.create_task(backup_auto_burn_job(f.id, file_path, f.burn_mode))
+        asyncio.create_task(backup_auto_burn_job(f.id, f.stored_filename, f.raw_stored_filename, f.burn_mode))
 
     await db.commit()
 
@@ -1033,6 +1368,9 @@ async def share_burn_file_session(
     if f.status != "active":
         return {"code": 200, "message": "文件已失效"}
 
+    if f.compress_status == "compressing":
+        raise HTTPException(status_code=423, detail="该文件正在进行加密压缩处理，分享暂不可用，请稍候再试")
+
     # 校验口令 (若有)
     if f.has_password:
         authorized = False
@@ -1048,16 +1386,18 @@ async def share_burn_file_session(
 
     # 执行即焚逻辑
     if f.burn_mode > 0:
-        file_path = os.path.abspath(os.path.join(settings.UPLOAD_DIR, f.stored_filename))
-        if f.burn_mode == 2: # 彻底物理粉碎
+        if f.burn_mode == 2: # 彻底物理粉碎 (清理当前存储及备份文件)
             f.status = "burned"
-            def destroy_file_disk(path: str):
-                try:
-                    if os.path.exists(path):
-                        os.remove(path)
-                except Exception:
-                    pass
-            background_tasks.add_task(destroy_file_disk, file_path)
+            def destroy_all_file_disk(stored_n: str, raw_n: Optional[str]):
+                for fn in [stored_n, raw_n]:
+                    if fn:
+                        p = os.path.join(settings.UPLOAD_DIR, fn)
+                        if os.path.exists(p):
+                            try:
+                                os.remove(p)
+                            except Exception:
+                                pass
+            background_tasks.add_task(destroy_all_file_disk, f.stored_filename, f.raw_stored_filename)
         else:
             f.status = "burned"
 
@@ -1097,6 +1437,9 @@ async def share_download_file(
 
     if not f:
         raise HTTPException(status_code=404, detail="文件不存在")
+
+    if f.compress_status == "compressing":
+        raise HTTPException(status_code=423, detail="该文件正在进行加密压缩处理，分享暂不可用，请稍候再试")
 
     # 1. IP 白名单校验
     if not is_ip_allowed(client_ip, f.allowed_ips):
@@ -1168,13 +1511,16 @@ async def share_download_file(
     if should_burn:
         if f.burn_mode == 2: # 彻底物理销毁
             f.status = "burned"
-            def destroy_file_disk(path: str):
-                try:
-                    if os.path.exists(path):
-                        os.remove(path)
-                except Exception:
-                    pass
-            background_tasks.add_task(destroy_file_disk, file_path)
+            def destroy_file_disk_all(stored_n: str, raw_n: Optional[str]):
+                for fn in [stored_n, raw_n]:
+                    if fn:
+                        p = os.path.join(settings.UPLOAD_DIR, fn)
+                        if os.path.exists(p):
+                            try:
+                                os.remove(p)
+                            except Exception:
+                                pass
+            background_tasks.add_task(destroy_file_disk_all, f.stored_filename, f.raw_stored_filename)
         else:
             # 仅失效分享链接，保留磁盘源文件
             f.status = "burned"
