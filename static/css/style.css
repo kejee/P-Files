@@ -619,9 +619,14 @@ input:checked + .slider:before {
     width: auto !important;
   }
 
+  .stat-card-hint {
+    display: none; /* 移动端屏幕空间有限，隐藏角标文字，依靠整块点击 */
+  }
+
   .modal-box {
     width: 95%;
     max-height: 90vh;
+    border-radius: var(--radius-md);
   }
   
   #toast-container {

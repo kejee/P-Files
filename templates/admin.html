@@ -17,6 +17,33 @@
       display: flex;
       align-items: center;
       gap: 14px;
+      cursor: pointer;
+      position: relative;
+      user-select: none;
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .stat-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(99, 102, 241, 0.45);
+      background: rgba(30, 41, 59, 0.75);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 0 15px rgba(99, 102, 241, 0.15);
+    }
+    .stat-card:active {
+      transform: translateY(-1px) scale(0.98);
+    }
+    .stat-card-hint {
+      position: absolute;
+      right: 12px;
+      top: 10px;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      opacity: 0.5;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .stat-card:hover .stat-card-hint {
+      opacity: 1;
+      color: #a5b4fc;
+      transform: translateX(2px);
     }
     .stat-icon {
       font-size: 2rem;
@@ -27,15 +54,21 @@
       align-items: center;
       justify-content: center;
       background: rgba(255, 255, 255, 0.05);
+      flex-shrink: 0;
     }
     .stat-num {
       font-size: 1.6rem;
       font-weight: 700;
       color: #fff;
+      line-height: 1.2;
     }
     .stat-label {
       font-size: 0.8rem;
       color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
     }
     .badge-rule {
       font-size: 0.72rem;
@@ -72,37 +105,42 @@
 
   <main class="container" style="padding-bottom: 60px;">
     
-    <!-- 1. 统计卡片面板 -->
+    <!-- 1. 统计卡片面板 (点击均可弹窗查看完整明细) -->
     <div class="stats-grid">
-      <div class="glass-panel stat-card">
+      <div class="glass-panel stat-card" onclick="showStatDetail('total_files')" title="点击查看全部文件明细列表">
+        <div class="stat-card-hint">明细 ↗</div>
         <div class="stat-icon" style="color: var(--primary);">📁</div>
         <div>
           <div class="stat-num" id="stat-total-files">-</div>
           <div class="stat-label">总分享文件数</div>
         </div>
       </div>
-      <div class="glass-panel stat-card">
+      <div class="glass-panel stat-card" onclick="showStatDetail('active_files')" title="点击查看当前活跃分享中文件">
+        <div class="stat-card-hint">明细 ↗</div>
         <div class="stat-icon" style="color: var(--accent-emerald);">⚡</div>
         <div>
           <div class="stat-num" id="stat-active-files">-</div>
           <div class="stat-label">活跃分享中</div>
         </div>
       </div>
-      <div class="glass-panel stat-card">
+      <div class="glass-panel stat-card" onclick="showStatDetail('views')" title="点击查看访客查看提取码明细日志">
+        <div class="stat-card-hint">明细 ↗</div>
         <div class="stat-icon" style="color: var(--accent-cyan);">👀</div>
         <div>
           <div class="stat-num" id="stat-total-views">-</div>
           <div class="stat-label">累计查看次数</div>
         </div>
       </div>
-      <div class="glass-panel stat-card">
+      <div class="glass-panel stat-card" onclick="showStatDetail('downloads')" title="点击查看访客真实下载明细日志">
+        <div class="stat-card-hint">明细 ↗</div>
         <div class="stat-icon" style="color: var(--accent-pink);">⬇️</div>
         <div>
           <div class="stat-num" id="stat-total-downloads">-</div>
           <div class="stat-label">累计下载次数</div>
         </div>
       </div>
-      <div class="glass-panel stat-card">
+      <div class="glass-panel stat-card" onclick="showStatDetail('blocked')" title="点击查看已被拦截的非法IP记录">
+        <div class="stat-card-hint">明细 ↗</div>
         <div class="stat-icon" style="color: var(--accent-rose);">🛡️</div>
         <div>
           <div class="stat-num" id="stat-blocked-ips">-</div>
@@ -320,6 +358,41 @@
     </div>
 
   </main>
+
+  <!-- 模态框: 仪表盘卡片统计明细 (自适应手机/桌面端) -->
+  <div id="modal-stat-detail" class="modal-overlay">
+    <div class="modal-box" style="max-width: 860px; padding: 0; display: flex; flex-direction: column; max-height: 88vh;">
+      <div class="modal-header" style="padding: 14px 20px; border-bottom: 1px solid var(--border-glass);">
+        <h3 id="modal-stat-detail-title" style="font-size: 1.05rem; display: flex; align-items: center; gap: 8px; color: #fff;">
+          📊 统计明细
+        </h3>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-stat-detail')">✕</button>
+      </div>
+      
+      <!-- 汇总摘要条 -->
+      <div id="modal-stat-detail-summary" style="padding: 10px 20px; background: rgba(15, 23, 42, 0.65); border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 0.84rem; color: #cbd5e1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+        <!-- 动态摘要 -->
+      </div>
+
+      <div class="modal-body" style="padding: 0; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch;">
+        <div class="table-responsive" style="margin: 0; border: none; border-radius: 0;">
+          <table class="data-table" style="width: 100%;">
+            <thead id="modal-stat-detail-thead">
+              <!-- 动态表头 -->
+            </thead>
+            <tbody id="modal-stat-detail-tbody">
+              <!-- 动态内容 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--border-glass); background: rgba(15, 23, 42, 0.85); display: flex; justify-content: space-between; align-items: center;">
+        <span id="modal-stat-detail-count" style="font-size: 0.8rem; color: var(--text-dim);">共 0 条明细</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('modal-stat-detail')">关闭</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 模态框: IP 访问明细与审计 -->
   <div id="modal-logs" class="modal-overlay">
@@ -1070,6 +1143,215 @@
       }).catch(() => {
         prompt('请手动长按复制分享链接:', text);
       });
+    }
+
+    // 仪表盘卡片明细弹窗 (自适应手机/桌面端)
+    async function showStatDetail(type) {
+      const titleEl = document.getElementById('modal-stat-detail-title');
+      const summaryEl = document.getElementById('modal-stat-detail-summary');
+      const theadEl = document.getElementById('modal-stat-detail-thead');
+      const tbodyEl = document.getElementById('modal-stat-detail-tbody');
+      const countEl = document.getElementById('modal-stat-detail-count');
+
+      // 初始化加载状态
+      tbodyEl.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--text-dim);">正在加载明细数据...</td></tr>`;
+      openModal('modal-stat-detail');
+
+      // 1. 全部文件明细 (total_files)
+      if (type === 'total_files') {
+        titleEl.innerHTML = `📁 全部文件明细清单`;
+        const total = currentFileList.length;
+        const stored = currentFileList.filter(f => f.status === 'stored').length;
+        const active = currentFileList.filter(f => f.status === 'active').length;
+        const expired = currentFileList.filter(f => f.status === 'expired' || f.status === 'burned' || f.status === 'revoked').length;
+
+        summaryEl.innerHTML = `
+          <span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc;">总计: ${total} 个文件</span>
+          <span class="badge badge-success">⚡ 活跃分享: ${active} 个</span>
+          <span class="badge" style="background:rgba(99,102,241,0.15); color:#c7d2fe;">🔒 私有云盘: ${stored} 个</span>
+          <span class="badge badge-warning">⏳ 过期/销毁: ${expired} 个</span>
+        `;
+        theadEl.innerHTML = `
+          <tr>
+            <th>提取码 / 状态</th>
+            <th>文件名</th>
+            <th>文件大小</th>
+            <th>查看 / 下载</th>
+            <th>创建 / 到期时间</th>
+            <th style="text-align: right;">快捷操作</th>
+          </tr>
+        `;
+        if (total === 0) {
+          tbodyEl.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">暂无任何文件记录</td></tr>`;
+          countEl.innerText = `共 0 条文件`;
+          return;
+        }
+        tbodyEl.innerHTML = currentFileList.map(f => {
+          let statusBadge = `<span class="badge badge-success">分享中</span>`;
+          if (f.status === 'stored') statusBadge = `<span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc;">私有</span>`;
+          if (f.status === 'expired') statusBadge = `<span class="badge badge-warning">已过期</span>`;
+          if (f.status === 'burned') statusBadge = `<span class="badge badge-danger">已销毁</span>`;
+          if (f.status === 'revoked') statusBadge = `<span class="badge badge-gray">已删除</span>`;
+
+          const smartName = formatSmartFilenameHtml(f.original_filename, 20);
+          return `
+            <tr>
+              <td>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span style="font-family:monospace; background:rgba(99,102,241,0.15); color:#a5b4fc; padding:1px 5px; border-radius:4px; font-weight:700; font-size:0.8rem;">
+                    ${f.share_code || '无提取码'}
+                  </span>
+                  ${statusBadge}
+                </div>
+              </td>
+              <td>${smartName}</td>
+              <td style="font-family:monospace; font-size:0.85rem;">${escapeHtml(f.file_size_formatted)}</td>
+              <td style="font-size:0.85rem;"><span style="color:var(--accent-cyan);">👀 ${f.view_count}</span> / <span style="color:var(--accent-emerald);">⬇️ ${f.download_count}</span></td>
+              <td style="font-size:0.78rem; color:var(--text-muted);">${escapeHtml(f.created_at || f.expire_at || '-')}</td>
+              <td style="text-align: right;">
+                ${f.status === 'active' ? `<button class="btn btn-secondary btn-sm" style="padding:2px 6px; font-size:0.75rem;" onclick="copyShare('${escapeHtml(f.share_code)}')">📋 复制</button>` : ''}
+                <button class="btn btn-secondary btn-sm" style="padding:2px 6px; font-size:0.75rem;" onclick="closeModal('modal-stat-detail'); openShareConfig(${f.id});">⚙️ 配置</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+        countEl.innerText = `共 ${total} 条文件记录`;
+      }
+
+      // 2. 活跃分享中文件 (active_files)
+      else if (type === 'active_files') {
+        titleEl.innerHTML = `⚡ 活跃分享中文件明细`;
+        const activeList = currentFileList.filter(f => f.status === 'active');
+        summaryEl.innerHTML = `
+          <span class="badge badge-success">● 正在公开分享中: ${activeList.length} 个</span>
+          <span style="color:var(--text-dim); font-size:0.8rem;">访客可正常使用提取码或链接访问下载</span>
+        `;
+        theadEl.innerHTML = `
+          <tr>
+            <th>提取码</th>
+            <th>文件名</th>
+            <th>文件大小</th>
+            <th>限制策略</th>
+            <th>已查看 / 下载</th>
+            <th>到期时间</th>
+            <th style="text-align: right;">操作</th>
+          </tr>
+        `;
+        if (activeList.length === 0) {
+          tbodyEl.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-dim); padding: 30px;">当前暂无活跃分享文件</td></tr>`;
+          countEl.innerText = `共 0 条活跃文件`;
+          return;
+        }
+        tbodyEl.innerHTML = activeList.map(f => {
+          let rules = [];
+          if (f.has_password) rules.push(`<span class="badge-rule">🔑 口令</span>`);
+          if (f.burn_mode === 1) rules.push(`<span class="badge-rule" style="color:#fbbf24;">🔥 毁链</span>`);
+          if (f.burn_mode === 2) rules.push(`<span class="badge-rule" style="color:#fda4af;">💥 销毁</span>`);
+          if (f.max_downloads > 0) rules.push(`<span class="badge-rule">🎯 限${f.max_downloads}次</span>`);
+          if (f.allowed_ips) rules.push(`<span class="badge-rule" style="color:#38bdf8;">🛡️ 白名单</span>`);
+          if (rules.length === 0) rules.push(`<span style="color:var(--text-dim); font-size:0.75rem;">无限制</span>`);
+
+          const smartName = formatSmartFilenameHtml(f.original_filename, 20);
+          return `
+            <tr>
+              <td>
+                <span style="font-family:monospace; background:rgba(99,102,241,0.2); color:#a5b4fc; padding:2px 6px; border-radius:4px; font-weight:700; font-size:0.85rem;">
+                  ${escapeHtml(f.share_code)}
+                </span>
+              </td>
+              <td>${smartName}</td>
+              <td style="font-family:monospace; font-size:0.85rem;">${escapeHtml(f.file_size_formatted)}</td>
+              <td><div style="display:flex; flex-wrap:wrap; gap:3px;">${rules.join('')}</div></td>
+              <td style="font-size:0.85rem;"><span style="color:var(--accent-cyan);">👀 ${f.view_count}</span> / <span style="color:var(--accent-emerald);">⬇️ ${f.download_count}</span></td>
+              <td style="font-size:0.78rem; color:var(--text-muted);">${escapeHtml(f.expire_at)}</td>
+              <td style="text-align: right;">
+                <button class="btn btn-secondary btn-sm" style="padding:2px 6px; font-size:0.75rem;" onclick="copyShare('${escapeHtml(f.share_code)}')">📋 复制</button>
+                <button class="btn btn-primary btn-sm" style="padding:2px 6px; font-size:0.75rem;" onclick="closeModal('modal-stat-detail'); openShareConfig(${f.id});">⚙️ 修改</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+        countEl.innerText = `共 ${activeList.length} 条活跃分享`;
+      }
+
+      // 3. 查看日志 (views) / 下载日志 (downloads) / 拦截日志 (blocked)
+      else {
+        let actionParam = '';
+        if (type === 'views') {
+          titleEl.innerHTML = `👀 访客查看提取码日志`;
+          actionParam = 'view';
+        } else if (type === 'downloads') {
+          titleEl.innerHTML = `⬇️ 访客真实下载日志`;
+          actionParam = 'download';
+        } else if (type === 'blocked') {
+          titleEl.innerHTML = `🛡️ 非法 IP 与异常拦截明细`;
+          actionParam = 'blocked_ip';
+        }
+
+        theadEl.innerHTML = `
+          <tr>
+            <th>动作类型</th>
+            <th>提取码</th>
+            <th>访客 IP</th>
+            <th>物理位置 (离线定位)</th>
+            <th>客户端设备 (UA)</th>
+            <th>时间</th>
+          </tr>
+        `;
+
+        try {
+          const res = await fetch(`/api/admin/logs/all?limit=150${actionParam ? '&action=' + actionParam : ''}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const json = await res.json();
+          const logs = json.data || [];
+
+          if (type === 'views') {
+            summaryEl.innerHTML = `<span class="badge" style="background:rgba(56,189,248,0.2); color:#38bdf8;">累计查看记录 (显示最新 ${logs.length} 条)</span>`;
+          } else if (type === 'downloads') {
+            summaryEl.innerHTML = `<span class="badge" style="background:rgba(236,72,153,0.2); color:#f472b6;">累计下载记录 (显示最新 ${logs.length} 条)</span>`;
+          } else if (type === 'blocked') {
+            summaryEl.innerHTML = `<span class="badge" style="background:rgba(244,63,94,0.2); color:#fda4af;">已触发安全拦截 (显示最新 ${logs.length} 条)</span>`;
+          }
+
+          if (logs.length === 0) {
+            tbodyEl.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-dim); padding: 30px;">暂无相关审计日志</td></tr>`;
+            countEl.innerText = `共 0 条日志`;
+            return;
+          }
+
+          tbodyEl.innerHTML = logs.map(l => {
+            let actBadge = `<span class="badge badge-info">👀 查看</span>`;
+            if (l.action === 'download') actBadge = `<span class="badge badge-success">⬇️ 下载</span>`;
+            if (l.action === 'blocked_ip') actBadge = `<span class="badge badge-danger">🛡️ 拦截</span>`;
+            if (l.action === 'wrong_pwd') actBadge = `<span class="badge badge-warning">🔑 口令错</span>`;
+            if (l.action === 'invalid_code') actBadge = `<span class="badge badge-gray">❌ 码无效</span>`;
+
+            const safeCode = escapeHtml(l.share_code || '-');
+            const safeIp = escapeHtml(l.ip);
+            const safeLoc = escapeHtml(l.location || '未知地区');
+            const safeTime = escapeHtml(l.created_at);
+            const safeUa = escapeHtml(l.user_agent || '-');
+
+            return `
+              <tr>
+                <td>${actBadge}</td>
+                <td style="font-family:monospace; font-weight:700; color:#a5b4fc;">${safeCode}</td>
+                <td style="font-family:monospace; color:#fff; font-size:0.85rem;">${safeIp}</td>
+                <td><span style="color:var(--accent-cyan); font-weight:500; font-size:0.82rem;">${safeLoc}</span></td>
+                <td style="font-size:0.75rem; color:var(--text-dim); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${safeUa}">
+                  ${safeUa}
+                </td>
+                <td style="font-size:0.78rem; color:var(--text-muted); white-space:nowrap;">${safeTime}</td>
+              </tr>
+            `;
+          }).join('');
+
+          countEl.innerText = `展示最新 ${logs.length} 条记录`;
+        } catch (e) {
+          tbodyEl.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #f43f5e; padding: 30px;">数据加载失败，请检查网络</td></tr>`;
+        }
+      }
     }
 
     // 查看文件访客 IP 与地区日志
